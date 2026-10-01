@@ -46,3 +46,7 @@ project-summary.txt
 
 ### Mac OS ###
 .DS_Store
+/data/pohr.db
+/xray/**
+/xray/
+rules.md

@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head(#{admin.title})}"></head>
+<body>
+
+<header th:replace="~{fragments/layout :: header}"></header>
+
+<main class="container">
+    <h1 th:text="#{admin.title}">Admin panel</h1>
+
+    <section class="card">
+        <h2 th:text="#{admin.xray.title}">Xray process</h2>
+        <p th:text="#{admin.xray.text}">Manage Xray process, logs and updates.</p>
+        <a class="button" th:href="@{/admin/xray}" th:text="#{admin.xray.manage}">Manage Xray</a>
+    </section>
+
+    <section class="card">
+        <h2 th:text="#{admin.users.title}">Users</h2>
+        <p th:text="#{admin.users.text}">Text</p>
+        <a class="button" th:href="@{/admin/users}" th:text="#{admin.users.manage}">Manage users</a>
+    </section>
+
+    <section class="card">
+        <h2 th:text="#{admin.config.title}">Xray configuration</h2>
+        <p th:text="#{admin.config.text}">Text</p>
+        <button disabled th:text="#{admin.config.edit}">Edit</button>
+    </section>
+
+    <section class="card">
+        <h2 th:text="#{admin.subscriptions.title}">Subscriptions</h2>
+        <p th:text="#{admin.subscriptions.text}">Manage client subscriptions.</p>
+        <a class="button" th:href="@{/admin/subscriptions}" th:text="#{admin.subscriptions.manage}">Manage</a>
+    </section>
+</main>
+
+</body>
+</html>

@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head(#{admin.xray.title})}"></head>
+<body>
+
+<header th:replace="~{fragments/layout :: header}"></header>
+
+<main class="container">
+    <h1 th:text="#{admin.xray.title}">Xray</h1>
+
+    <div th:if="${successMessage}" class="alert success" th:text="#{${successMessage}}"></div>
+    <div th:if="${errorMessage}" class="alert error" th:text="#{${errorMessage}}"></div>
+
+    <div class="toolbar">
+        <a class="link" th:href="@{/admin}" th:text="#{common.back}">Back</a>
+    </div>
+
+    <section class="card">
+        <h2 th:text="#{admin.xray.status}">Status</h2>
+        <p>
+            <span th:if="${running}" class="badge enabled" th:text="#{admin.xray.running}">running</span>
+            <span th:unless="${running}" class="badge stopped" th:text="#{admin.xray.stopped}">stopped</span>
+        </p>
+        <p th:if="${running}">
+            <span th:text="#{admin.xray.pid}">PID:</span>
+            <code th:text="${pid}">1234</code>
+            <span>·</span>
+            <span th:text="#{admin.xray.started}">started at</span>
+            <code th:text="${startedAt}">2026-01-01T12:00:00Z</code>
+        </p>
+        <p>
+            <span th:text="#{admin.xray.version}">Version:</span>
+            <code th:if="${installed}" th:text="${version}">25.10.1</code>
+            <span th:unless="${installed}" class="muted" th:text="#{admin.xray.not-installed}">not installed</span>
+        </p>
+
+        <div class="form-actions">
+            <form th:action="@{/admin/xray/start}" method="post" class="inline">
+                <button type="submit" th:disabled="${running}" th:text="#{admin.xray.start}">Start</button>
+            </form>
+            <form th:action="@{/admin/xray/stop}" method="post" class="inline">
+                <button type="submit" th:disabled="${!running}" th:text="#{admin.xray.stop}">Stop</button>
+            </form>
+            <form th:action="@{/admin/xray/restart}" method="post" class="inline">
+                <button type="submit" th:disabled="${!running}" th:text="#{admin.xray.restart}">Restart</button>
+            </form>
+        </div>
+    </section>
+
+    <section class="card">
+        <h2 th:text="#{admin.xray.install.title}">Install / Update</h2>
+        <form th:action="@{/admin/xray/install}" method="post" class="inline-form">
+            <label>
+                <span th:text="#{admin.xray.install.version}">Version</span>
+                <input type="text" name="version" required
+                       placeholder="latest"
+                       th:value="${version} ?: ''">
+            </label>
+            <button type="submit" th:text="#{admin.xray.install.submit}">Install</button>
+        </form>
+        <p class="hint" th:text="#{admin.xray.install.hint}">Downloads Xray and replaces the binary. Old version kept as xray.bak.</p>
+    </section>
+
+    <section class="card">
+        <h2 th:text="#{admin.xray.logs}">Recent logs</h2>
+        <pre class="logs" id="logs"
+             th:data-initial="${#strings.listJoin(recentLogs, '\n')}"></pre>
+        <p th:if="${recentLogs.isEmpty()}" class="muted" th:text="#{admin.xray.logs.empty}">No logs yet</p>
+    </section>
+
+    <script>
+        (function () {
+            const pre = document.getElementById('logs');
+            const initial = pre.dataset.initial || '';
+            if (initial) pre.textContent = initial + '\n';
+
+            const proto = location.protocol === 'https:' ? 'wss://' : 'ws://';
+            const ws = new WebSocket(proto + location.host + '/ws/xray-logs');
+
+            ws.onmessage = (e) => {
+                pre.textContent += e.data + '\n';
+                const lines = pre.textContent.split('\n');
+                if (lines.length > 1000) {
+                    pre.textContent = lines.slice(-1000).join('\n');
+                }
+                pre.scrollTop = pre.scrollHeight;
+            };
+            ws.onclose = () => console.log('WebSocket closed');
+            ws.onerror = (e) => console.error('WebSocket error', e);
+        })();
+    </script>
+</main>
+
+</body>
+</html>

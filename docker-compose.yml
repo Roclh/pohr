@@ -1,0 +1,10 @@
+services:
+  xray:
+    image: ghcr.io/xtls/xray-core:latest
+    container_name: pohr-xray
+    restart: unless-stopped
+    volumes:
+      - ./xray:/etc/xray
+    command: ["run", "-c", "/etc/xray/config.json"]
+    ports:
+      - "8443:8443"

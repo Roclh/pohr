@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
+<head th:fragment="head(title)">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title th:text="${title}">Pohr</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body>
+
+<header th:fragment="header" class="topbar">
+    <div class="brand" th:text="#{app.title}">Pohr</div>
+    <nav>
+        <a th:href="@{/home}" th:text="#{nav.home}">Home</a>
+        <a sec:authorize="hasRole('ADMIN')" th:href="@{/admin}" th:text="#{nav.admin}">Admin</a>
+
+        <span class="lang-switch">
+            <a th:href="@{''(lang='en')}" th:text="#{lang.en}">EN</a>
+            <span>·</span>
+            <a th:href="@{''(lang='ru')}" th:text="#{lang.ru}">RU</a>
+        </span>
+
+        <span class="user" sec:authentication="name">user</span>
+        <form th:action="@{/logout}" method="post" class="inline">
+            <button type="submit" class="link-button" th:text="#{nav.logout}">Logout</button>
+        </form>
+    </nav>
+</header>
+
+</body>
+</html>

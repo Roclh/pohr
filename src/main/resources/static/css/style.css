@@ -1,0 +1,278 @@
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #f5f6f8;
+    color: #1f2329;
+}
+
+.topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 24px;
+    background: #1f2329;
+    color: white;
+}
+
+.topbar .brand { font-weight: 600; font-size: 1.2rem; }
+.topbar nav { display: flex; align-items: center; gap: 16px; }
+.topbar a { color: #cfd4dd; text-decoration: none; }
+.topbar a:hover { color: white; }
+.topbar .user { color: #8a94a6; font-size: .9rem; }
+
+.inline { display: inline; }
+.link-button {
+    background: none;
+    border: none;
+    color: #cfd4dd;
+    cursor: pointer;
+    font: inherit;
+    padding: 0;
+}
+.link-button:hover { color: white; }
+
+.container {
+    max-width: 900px;
+    margin: 24px auto;
+    padding: 0 24px;
+}
+
+h1 { margin-top: 0; }
+
+.card {
+    background: white;
+    border-radius: 8px;
+    padding: 20px;
+    margin-bottom: 16px;
+    box-shadow: 0 1px 3px rgba(0,0,0,.06);
+}
+
+.card h2 { margin-top: 0; font-size: 1.1rem; }
+
+button, .button {
+    display: inline-block;
+    padding: 8px 14px;
+    border: 1px solid #1f2329;
+    background: #1f2329;
+    color: white;
+    border-radius: 6px;
+    font: inherit;
+    cursor: pointer;
+    text-decoration: none;
+}
+button:disabled { opacity: .4; cursor: not-allowed; }
+
+.badge {
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: .85rem;
+}
+.badge.stopped { background: #fce1e1; color: #b3261e; }
+
+/* Login page */
+.login-page {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+}
+.login-card {
+    background: white;
+    padding: 32px;
+    border-radius: 10px;
+    box-shadow: 0 4px 20px rgba(0,0,0,.08);
+    width: 320px;
+}
+.login-card h1 { margin: 0 0 4px; font-size: 1.5rem; }
+.login-card h2 { margin: 0 0 20px; font-size: 1rem; color: #6b7280; font-weight: 400; }
+.login-card label {
+    display: block;
+    margin-bottom: 12px;
+}
+.login-card label span {
+    display: block;
+    font-size: .85rem;
+    margin-bottom: 4px;
+    color: #4b5563;
+}
+.login-card input {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font: inherit;
+}
+.login-card button {
+    width: 100%;
+    margin-top: 8px;
+    padding: 10px;
+}
+
+.alert {
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: .9rem;
+    margin-bottom: 12px;
+}
+.alert.error { background: #fce1e1; color: #b3261e; }
+.alert.info  { background: #e0eaff; color: #1d4ed8; }
+
+.lang-switch {
+    display: inline-flex;
+    gap: 4px;
+    align-items: center;
+    color: #8a94a6;
+    font-size: .85rem;
+}
+.lang-switch a { color: #cfd4dd; }
+.lang-switch a:hover { color: white; }
+
+.lang-switch-login {
+    margin-top: 16px;
+    text-align: center;
+    color: #9ca3af;
+    font-size: .85rem;
+}
+.lang-switch-login a { color: #6b7280; text-decoration: none; }
+.lang-switch-login a:hover { color: #1f2329; }
+
+.container.narrow { max-width: 520px; }
+
+.toolbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+}
+
+.table {
+    width: 100%;
+    border-collapse: collapse;
+    background: white;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,.06);
+}
+.table th, .table td {
+    padding: 10px 14px;
+    text-align: left;
+    border-bottom: 1px solid #eef0f3;
+}
+.table th {
+    background: #f8f9fb;
+    font-weight: 600;
+    color: #4b5563;
+    font-size: .85rem;
+}
+.table tr:last-child td { border-bottom: none; }
+.table .actions { text-align: right; white-space: nowrap; }
+
+.link {
+    color: #1d4ed8;
+    text-decoration: none;
+    margin-left: 12px;
+}
+.link:hover { text-decoration: underline; }
+.link-button.danger { color: #b3261e; margin-left: 12px; }
+.link-button.danger:hover { color: #7a1a14; }
+
+.badge.admin { background: #e0eaff; color: #1d4ed8; }
+.badge.user  { background: #eef0f3; color: #4b5563; }
+.badge.enabled  { background: #d8f3dc; color: #1b7a3a; }
+.badge.disabled { background: #fce1e1; color: #b3261e; }
+
+.muted { color: #6b7280; }
+
+.form .field { margin-bottom: 16px; }
+.form label { display: block; font-size: .9rem; margin-bottom: 6px; color: #374151; }
+.form input[type=text],
+.form input[type=password],
+.form select {
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font: inherit;
+}
+.form .checkbox label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 0;
+}
+.form .checkbox input { width: auto; }
+
+.form .hint { color: #6b7280; font-size: .8rem; margin: 4px 0 0; }
+.form .field-error { color: #b3261e; font-size: .8rem; margin: 4px 0 0; }
+.form .has-error input,
+.form .has-error select { border-color: #b3261e; }
+
+.form-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 20px;
+}
+.form-actions .link { margin: 0; }
+
+.alert.success { background: #d8f3dc; color: #1b7a3a; }
+
+.inline-form {
+    display: flex;
+    align-items: flex-end;
+    gap: 12px;
+    margin-bottom: 8px;
+}
+.inline-form label { margin: 0; }
+.inline-form input {
+    padding: 8px 10px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font: inherit;
+    width: 140px;
+}
+
+.logs {
+    background: #1f2329;
+    color: #d4d4d4;
+    padding: 12px;
+    border-radius: 6px;
+    font-family: "SF Mono", Consolas, monospace;
+    font-size: .8rem;
+    line-height: 1.5;
+    max-height: 400px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+    margin: 0;
+}
+
+.copy-box {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+.copy-box input[type=text] {
+    flex: 1;
+    padding: 6px 10px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font: inherit;
+    font-family: "SF Mono", Consolas, monospace;
+    font-size: .85rem;
+    background: #f8f9fb;
+    color: #1f2329;
+}
+.copy-btn {
+    padding: 6px 12px;
+    border: 1px solid #d1d5db;
+    background: white;
+    color: #1f2329;
+    border-radius: 6px;
+    cursor: pointer;
+    font: inherit;
+    min-width: 90px;
+}
+.copy-btn:hover { background: #f5f6f8; }

@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head(#{admin.users.title})}"></head>
+<body>
+
+<header th:replace="~{fragments/layout :: header}"></header>
+
+<main class="container">
+    <h1 th:text="#{admin.users.title}">Users</h1>
+
+    <div th:if="${successMessage}" class="alert success" th:text="#{${successMessage}}"></div>
+    <div th:if="${errorMessage}" class="alert error" th:text="#{${errorMessage}}"></div>
+
+    <div class="toolbar">
+        <a class="button" th:href="@{/admin/users/new}" th:text="#{admin.users.new}">New user</a>
+        <a class="link" th:href="@{/admin}" th:text="#{common.back}">Back</a>
+    </div>
+
+    <table class="table" th:if="${!users.isEmpty()}">
+        <thead>
+        <tr>
+            <th th:text="#{user.list.username}">Username</th>
+            <th th:text="#{user.list.role}">Role</th>
+            <th th:text="#{user.list.enabled}">Enabled</th>
+            <th th:text="#{user.list.created}">Created</th>
+            <th class="actions" th:text="#{user.list.actions}">Actions</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="user : ${users}">
+            <td th:text="${user.username}">admin</td>
+            <td>
+                <span class="badge" th:classappend="${user.role == 'ADMIN'} ? 'admin' : 'user'"
+                      th:text="${user.role}">ADMIN</span>
+            </td>
+            <td>
+                <span class="badge" th:classappend="${user.enabled} ? 'enabled' : 'disabled'"
+                      th:text="${user.enabled} ? #{common.yes} : #{common.no}">yes</span>
+            </td>
+            <td th:text="${user.createdAt}">2026-01-01</td>
+            <td class="actions">
+                <a class="link" th:href="@{/admin/users/{id}/edit(id=${user.id})}"
+                   th:text="#{user.list.edit}">Edit</a>
+                <form th:action="@{/admin/users/{id}/delete(id=${user.id})}"
+                      method="post" class="inline"
+                      onsubmit="return confirm(this.dataset.confirm)"
+                      th:data-confirm="#{user.list.delete.confirm}">
+                    <button type="submit" class="link-button danger"
+                            th:text="#{user.list.delete}">Delete</button>
+                </form>
+            </td>
+        </tr>
+        </tbody>
+    </table>
+
+    <p th:if="${users.isEmpty()}" class="muted" th:text="#{user.list.empty}">No users</p>
+</main>
+
+</body>
+</html>

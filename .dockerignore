@@ -1,0 +1,12 @@
+.gradle/
+build/
+data/
+xray/
+.idea/
+*.iml
+*.log
+.git/
+.gitignore
+docker-compose.yml
+Dockerfile
+README.md

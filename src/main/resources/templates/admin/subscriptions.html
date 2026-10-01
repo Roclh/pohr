@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head(#{admin.subscriptions.title})}"></head>
+<body>
+
+<header th:replace="~{fragments/layout :: header}"></header>
+
+<main class="container">
+    <h1 th:text="#{admin.subscriptions.title}">Subscriptions</h1>
+
+    <div th:if="${successMessage}" class="alert success" th:text="#{${successMessage}}"></div>
+    <div th:if="${errorMessage}" class="alert error" th:text="${errorMessage}"></div>
+
+    <div class="toolbar">
+        <a class="button" th:href="@{/admin/subscriptions/new}" th:text="#{admin.subscriptions.new}">New</a>
+        <a class="link" th:href="@{/admin}" th:text="#{common.back}">Back</a>
+    </div>
+
+    <table class="table" th:if="${!subscriptions.isEmpty()}">
+        <thead>
+        <tr>
+            <th th:text="#{subscription.list.username}">User</th>
+            <th th:text="#{subscription.list.url}">URL</th>
+            <th th:text="#{subscription.list.enabled}">Active</th>
+            <th th:text="#{subscription.list.created}">Created</th>
+            <th class="actions" th:text="#{subscription.list.actions}">Actions</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="sub : ${subscriptions}">
+            <td th:text="${sub.username()}">admin</td>
+            <td>
+                <div class="copy-box">
+                    <input type="text" readonly th:value="${sub.url()}" th:id="'url-' + ${sub.id()}">
+                    <button type="button" class="copy-btn"
+                            th:attr="data-copy=${sub.url()}"
+                            th:text="#{subscription.list.copy}">Copy</button>
+                </div>
+            </td>
+            <td>
+                <span class="badge" th:classappend="${sub.enabled()} ? 'enabled' : 'disabled'"
+                      th:text="${sub.enabled()} ? #{common.yes} : #{common.no}">yes</span>
+            </td>
+            <td th:text="${sub.createdAt()}">2026-01-01</td>
+            <td class="actions">
+                <form th:action="@{/admin/subscriptions/{id}/toggle(id=${sub.id()})}"
+                      method="post" class="inline">
+                    <button type="submit" class="link-button"
+                            th:text="${sub.enabled()} ? #{subscription.list.disable} : #{subscription.list.enable}">Toggle</button>
+                </form>
+                <form th:action="@{/admin/subscriptions/{id}/delete(id=${sub.id()})}"
+                      method="post" class="inline"
+                      onsubmit="return confirm(this.dataset.confirm)"
+                      th:data-confirm="#{subscription.list.delete.confirm}">
+                    <button type="submit" class="link-button danger"
+                            th:text="#{subscription.list.delete}">Delete</button>
+                </form>
+            </td>
+        </tr>
+        </tbody>
+    </table>
+
+    <p th:if="${subscriptions.isEmpty()}" class="muted" th:text="#{subscription.list.empty}">No subscriptions yet</p>
+</main>
+
+<script>
+    document.querySelectorAll('.copy-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const text = btn.dataset.copy;
+            navigator.clipboard.writeText(text).then(() => {
+                const original = btn.textContent;
+                btn.textContent = '✓';
+                setTimeout(() => btn.textContent = original, 1200);
+            });
+        });
+    });
+</script>
+
+</body>
+</html>

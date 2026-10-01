@@ -1,0 +1,7 @@
+xray:
+  home: /app/xray
+  install:
+    auto: ${XRAY_AUTO_INSTALL:true}
+    version: ${XRAY_VERSION:latest}
+    download-url-template: https://github.com/XTLS/Xray-core/releases/download/v{version}/Xray-{platform}.zip
+    fallback-url-template: ${XRAY_FALLBACK_URL:}

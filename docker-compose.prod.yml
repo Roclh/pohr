@@ -1,0 +1,20 @@
+services:
+  pohr:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: roclh/pohr:latest
+    ports:
+      - "8080:8080"
+    volumes:
+      - pohr-data:/app/data
+      - pohr-xray:/app/xray
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - XRAY_AUTO_INSTALL=true
+      - XRAY_VERSION=latest
+    restart: unless-stopped
+
+volumes:
+  pohr-data:
+  pohr-xray:

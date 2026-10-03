@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head(#{admin.nodes.title})}"></head>
+<body>
+
+<header th:replace="~{fragments/layout :: header}"></header>
+
+<main class="container">
+    <h1 th:text="#{admin.nodes.title}">EU nodes</h1>
+
+    <div th:if="${successMessage}" class="alert success" th:text="#{${successMessage}}"></div>
+    <div th:if="${errorMessage}" class="alert error" th:text="#{${errorMessage}}"></div>
+
+    <p class="muted" th:text="#{admin.nodes.text}">Register EU exit nodes.</p>
+
+    <div class="toolbar">
+        <a class="button" th:href="@{/admin/nodes/new}" th:text="#{admin.nodes.new}">New node</a>
+        <a class="link" th:href="@{/admin}" th:text="#{common.back}">Back</a>
+    </div>
+
+    <table class="table" th:if="${!nodes.isEmpty()}">
+        <thead>
+        <tr>
+            <th th:text="#{node.list.name}">Name</th>
+            <th th:text="#{node.list.host}">Host</th>
+            <th th:text="#{node.list.status}">Status</th>
+            <th th:text="#{node.list.health}">Health</th>
+            <th th:text="#{node.list.tunnel}">Tunnel</th>
+            <th th:text="#{node.list.enrolled}">Enrolled</th>
+            <th class="actions" th:text="#{node.list.actions}">Actions</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="n : ${nodes}">
+            <td><code th:text="${n.name()}">eu-de-1</code></td>
+            <td th:text="${n.host()} + ':' + ${n.port()}">1.2.3.4:8443</td>
+            <td>
+        <span class="badge"
+              th:classappend="${n.status().name() == 'HEALTHY' ? 'enabled'
+                             : (n.status().name() == 'UNREACHABLE' or n.status().name() == 'PENDING') ? 'disabled'
+                             : 'user'}"
+              th:text="${#messages.msg('node.status.' + #strings.toLowerCase(n.status().name()))}">Healthy</span>
+            </td>
+            <td th:text="${n.lastHealthAt() != null ? #strings.substringBefore(n.lastHealthAt().toString(), '.') : '—'}">
+                2026-01-01T00:00:00
+            </td>
+            <td th:text="${n.lastTunnelIp() != null ? n.lastTunnelIp() : '—'}">1.2.3.4</td>
+            <td th:text="${#strings.substringBefore(n.enrolledAt().toString(), '.')}">2026-01-01T00:00:00</td>
+            <td class="actions">
+                <a class="link" th:href="@{/admin/nodes/{id}(id=${n.id()})}"
+                   th:text="#{node.list.detail}">Details</a>
+            </td>
+        </tr>
+        </tbody>
+    </table>
+
+    <p th:if="${nodes.isEmpty()}" class="muted" th:text="#{node.list.empty}">No nodes yet</p>
+</main>
+
+</body>
+</html>

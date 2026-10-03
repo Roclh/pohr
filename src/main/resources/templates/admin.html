@@ -22,14 +22,26 @@
 
     <section class="card">
         <h2 th:text="#{admin.config.title}">Xray configuration</h2>
-        <p th:text="#{admin.config.text}">Text</p>
-        <button disabled th:text="#{admin.config.edit}">Edit</button>
+        <p th:text="#{admin.config.text}">Manage named configs, switch the active one.</p>
+        <a class="button" th:href="@{/admin/xray/configs}" th:text="#{admin.config.manage}">Manage configs</a>
     </section>
 
     <section class="card">
         <h2 th:text="#{admin.subscriptions.title}">Subscriptions</h2>
         <p th:text="#{admin.subscriptions.text}">Manage client subscriptions.</p>
         <a class="button" th:href="@{/admin/subscriptions}" th:text="#{admin.subscriptions.manage}">Manage</a>
+    </section>
+
+    <section class="card">
+        <h2 th:text="#{admin.scripts.title}">Client scripts</h2>
+        <p th:text="#{admin.scripts.text}">Scripts are stored on disk (SCRIPTS_HOME volume). Bundled copies are seeded on first start; edits survive container updates.</p>
+        <a class="button" th:href="@{/admin/client-scripts}" th:text="#{admin.scripts.manage}">Manage scripts</a>
+    </section>
+
+    <section class="card">
+        <h2 th:text="#{admin.nodes.title}">EU nodes</h2>
+        <p th:text="#{admin.nodes.text}">Register EU exit nodes.</p>
+        <a class="button" th:href="@{/admin/nodes}" th:text="#{admin.nodes.manage}">Manage nodes</a>
     </section>
 </main>
 

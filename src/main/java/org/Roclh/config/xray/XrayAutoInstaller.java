@@ -2,6 +2,8 @@ package org.Roclh.config.xray;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.Roclh.service.xray.XrayConfigMaterializer;
+import org.Roclh.service.xray.XrayConfigService;
 import org.Roclh.service.xray.XrayInstaller;
 import org.Roclh.service.xray.XrayVersionResolver;
 import org.springframework.beans.factory.annotation.Value;
@@ -16,6 +18,8 @@ public class XrayAutoInstaller {
 
     private final XrayInstaller installer;
     private final XrayVersionResolver versionResolver;
+    private final XrayConfigService configService;
+    private final XrayConfigMaterializer materializer;
 
     @Value("${xray.install.auto:true}")
     private boolean autoInstall;
@@ -41,11 +45,9 @@ public class XrayAutoInstaller {
             }
             try {
                 boolean installed = installer.install(target);
-                if (installed) {
-                    log.info("Xray {} installed successfully", target);
-                } else {
-                    log.info("Xray {} already up to date", target);
-                }
+                log.info(installed ? "Xray {} installed" : "Xray {} already up to date", target);
+                configService.ensureDefault();
+                materializer.materialize();
             } catch (Exception e) {
                 log.error("Failed to auto-install Xray {}: {}", target, e.getMessage(), e);
             }

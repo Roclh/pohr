@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head(#{xray.config.form.title})}"></head>
+<body>
+
+<header th:replace="~{fragments/layout :: header}"></header>
+
+<main class="container">
+    <h1 th:text="${mode == 'create'} ? #{xray.config.form.title.create} : #{xray.config.form.title.edit}">Config</h1>
+
+    <div th:if="${successMessage}" class="alert success" th:text="#{${successMessage}}"></div>
+    <div th:if="${errorMessage}" class="alert error" th:text="${errorMessage}"></div>
+    <div th:if="${active}" class="alert info" th:text="#{xray.config.form.activeBanner}">
+        This configuration is currently active. Save then restart Xray to apply changes.
+    </div>
+
+
+    <div th:if="${mode == 'edit'}" class="toolbar">
+        <span></span>
+        <form th:action="@{/admin/xray/configs/{id}/refresh-key(id=${configId})}" method="post" class="inline">
+            <button type="submit" class="link-button on-light" th:text="#{xray.config.form.refreshKey}">Derive public key</button>
+            <button type="button" id="format-json" class="link-button on-light"
+                    th:text="#{xray.config.form.format}">Format JSON</button>
+        </form>
+    </div>
+
+    <form th:action="${mode == 'create'} ? @{/admin/xray/configs} : @{/admin/xray/configs/{id}(id=${configId})}"
+          th:object="${form}" method="post" class="form card">
+
+        <div class="field" th:classappend="${#fields.hasErrors('name')} ? 'has-error'">
+            <label for="name" th:text="#{xray.config.form.name}">Name</label>
+            <input type="text" id="name" th:field="*{name}" autofocus>
+            <p class="field-error" th:if="${#fields.hasErrors('name')}" th:errors="*{name}">error</p>
+        </div>
+
+        <div class="field" th:classappend="${#fields.hasErrors('description')} ? 'has-error'">
+            <label for="description" th:text="#{xray.config.form.description}">Description</label>
+            <input type="text" id="description" th:field="*{description}">
+            <p class="field-error" th:if="${#fields.hasErrors('description')}" th:errors="*{description}">error</p>
+        </div>
+
+        <div class="field" th:classappend="${#fields.hasErrors('realityPublicKey')} ? 'has-error'">
+            <label for="realityPublicKey" th:text="#{xray.config.form.realityPublicKey}">Reality public key</label>
+            <input type="text" id="realityPublicKey" th:field="*{realityPublicKey}">
+            <p class="hint" th:text="#{xray.config.form.realityPublicKey.hint}">Hint</p>
+            <p class="field-error" th:if="${#fields.hasErrors('realityPublicKey')}" th:errors="*{realityPublicKey}">error</p>
+        </div>
+
+        <div class="field" th:classappend="${#fields.hasErrors('content')} ? 'has-error'">
+            <label for="content" th:text="#{xray.config.form.content}">JSON content</label>
+            <textarea id="content" th:field="*{content}" rows="30" spellcheck="false"
+                      class="config-editor"></textarea>
+            <p class="field-error" th:if="${#fields.hasErrors('content')}" th:errors="*{content}">error</p>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" th:text="#{xray.config.form.save}">Save</button>
+            <a class="link" th:href="@{/admin/xray/configs}" th:text="#{xray.config.form.cancel}">Cancel</a>
+        </div>
+    </form>
+</main>
+<script>
+    document.getElementById('format-json')?.addEventListener('click', () => {
+        const ta = document.getElementById('content');
+        try {
+            ta.value = JSON.stringify(JSON.parse(ta.value), null, 2);
+        } catch (e) {
+            alert('Invalid JSON: ' + e.message);
+        }
+    });
+</script>
+
+<script>
+    (function () {
+        const ta = document.getElementById('content');
+        if (!ta) return;
+        ta.addEventListener('keydown', (e) => {
+            if (e.key !== 'Tab') return;
+            e.preventDefault();
+            const start = ta.selectionStart;
+            const end = ta.selectionEnd;
+            const value = ta.value;
+            if (start === end) {
+                ta.value = value.slice(0, start) + '  ' + value.slice(end);
+                ta.selectionStart = ta.selectionEnd = start + 2;
+            } else {
+                // multiline indent
+                const before = value.slice(0, start);
+                const selected = value.slice(start, end);
+                const after = value.slice(end);
+                const indented = selected.replace(/\n/g, '\n  ');
+                ta.value = before + '  ' + indented + after;
+                ta.selectionStart = start;
+                ta.selectionEnd = end + 2 + (indented.length - selected.length);
+            }
+        });
+    })();
+</script>
+</body>
+</html>

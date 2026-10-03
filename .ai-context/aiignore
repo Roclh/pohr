@@ -27,4 +27,5 @@ LICENSE
 *.txt
 .ai-context
 .gradle
+/scripts/
 ...

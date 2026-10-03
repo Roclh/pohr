@@ -25,7 +25,7 @@ public class SubscriptionController {
         if (subscription == null) {
             return ResponseEntity.notFound().build();
         }
-        List<String> links = xrayConfigService.buildVlessLinks();
+        List<String> links = xrayConfigService.buildVlessLinks(subscription);
         if (links.isEmpty()) {
             return ResponseEntity.status(503).body("# No servers configured yet");
         }
@@ -33,7 +33,9 @@ public class SubscriptionController {
         String encoded = Base64.getEncoder().encodeToString(body.getBytes(StandardCharsets.UTF_8));
         return ResponseEntity.ok()
                 .header("Content-Type", "text/plain; charset=utf-8")
+                .header("Profile-Title", "Pohr")
                 .header("Profile-Update-Interval", "6")
+                .header("Subscription-Userinfo", "upload=0; download=0; total=0; expire=0")
                 .body(encoded);
     }
 }

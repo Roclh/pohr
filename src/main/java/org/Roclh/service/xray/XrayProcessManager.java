@@ -1,11 +1,10 @@
 package org.Roclh.service.xray;
 
+import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.Roclh.config.ws.XrayLogWebSocketHandler;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -17,30 +16,78 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayDeque;
 import java.util.Deque;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Service
 public class XrayProcessManager {
     private static final int LOG_BUFFER_SIZE = 500;
-    private XrayLogWebSocketHandler logHandler;
 
+    private final XrayLogWebSocketHandler logHandler;
+    private final XrayConfigMaterializer materializer;
     private final Path xrayBinary;
     private final Path configPath;
+    private final Path pidFile;
 
     private Process process;
     private final Deque<String> logBuffer = new ArrayDeque<>();
-    @Getter private Instant startedAt;
-    @Getter private Instant stoppedAt;
-    @Getter private Integer lastExitCode;
+    @Getter
+    private Instant startedAt;
+    @Getter
+    private Instant stoppedAt;
+    @Getter
+    private Integer lastExitCode;
 
-    public XrayProcessManager(@Value("${xray.home}") String home, XrayLogWebSocketHandler logHandler) {
+    public XrayProcessManager(@Value("${xray.home}") String home,
+                              XrayLogWebSocketHandler logHandler,
+                              XrayConfigMaterializer materializer) {
         Path homePath = Path.of(home);
         String binaryName = System.getProperty("os.name").toLowerCase().contains("win")
                 ? "xray.exe" : "xray";
         this.xrayBinary = homePath.resolve("bin").resolve(binaryName);
         this.configPath = homePath.resolve("config").resolve("config.json");
+        this.pidFile = homePath.resolve("xray.pid");
         this.logHandler = logHandler;
+        this.materializer = materializer;
+    }
+
+    /**
+     * При старте приложения — если остался PID-файл от предыдущего инстанса,
+     * проверяем: жив ли процесс. Живой — убиваем (мы единственный владелец),
+     * мёртвый — просто чистим файл.
+     */
+    @PostConstruct
+    public synchronized void recoverStaleProcess() {
+        if (!Files.exists(pidFile)) {
+            return;
+        }
+        try {
+            long pid = Long.parseLong(Files.readString(pidFile).trim());
+            ProcessHandle.of(pid).ifPresentOrElse(h -> {
+                if (h.isAlive()) {
+                    log.warn("Found stale Xray process (pid={}) from previous run, killing it", pid);
+                    h.destroy();
+                    try {
+                        h.onExit().get(5, TimeUnit.SECONDS);
+                        log.info("Stale Xray (pid={}) terminated gracefully", pid);
+                    } catch (Exception e) {
+                        log.warn("Stale Xray (pid={}) did not exit in 5s, forcing", pid);
+                        h.destroyForcibly();
+                        try {
+                            h.onExit().get(3, TimeUnit.SECONDS);
+                        } catch (Exception ignored) {
+                            log.error("Stale Xray (pid={}) refused to die; port conflict expected", pid);
+                        }
+                    }
+                } else {
+                    log.info("Stale PID file found (pid={}), process is dead, cleaning up", pid);
+                }
+            }, () -> log.info("Stale PID file found (pid={}), process no longer exists", pid));
+            Files.deleteIfExists(pidFile);
+        } catch (Exception e) {
+            log.warn("Failed to recover stale Xray process: {}", e.getMessage());
+        }
     }
 
     public synchronized boolean start() {
@@ -51,21 +98,27 @@ public class XrayProcessManager {
         if (!Files.exists(xrayBinary)) {
             throw new IllegalStateException("Xray binary not found: " + xrayBinary);
         }
+        materializer.materialize();
+
         if (!Files.exists(configPath)) {
-            throw new IllegalStateException("Xray config not found: " + configPath);
+            throw new IllegalStateException("Xray config not found after materialization: " + configPath);
         }
         try {
             ProcessBuilder pb = new ProcessBuilder(
                     xrayBinary.toString(), "run", "-c", configPath.toString());
             pb.redirectErrorStream(true);
-            // Маскировка: переименовываем argv[0]
             pb.environment().put("XRAY_LOCATION_ASSET", configPath.getParent().toString());
             process = pb.start();
             startedAt = Instant.now();
             lastExitCode = null;
             logBuffer.clear();
 
-            // Асинхронное чтение логов
+            try {
+                Files.writeString(pidFile, String.valueOf(process.pid()));
+            } catch (IOException e) {
+                log.warn("Failed to write PID file {}: {}", pidFile, e.getMessage());
+            }
+
             Thread logReader = new Thread(() -> {
                 try (BufferedReader r = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
                     String line;
@@ -88,7 +141,14 @@ public class XrayProcessManager {
     }
 
     public synchronized boolean stop() {
-        if (!isRunning()) return false;
+        if (!isRunning()) {
+            try {
+                Files.deleteIfExists(pidFile);
+                return false;
+            } catch (IOException e) {
+                log.warn("Failed to delete PID file {}: {}", pidFile, e.getMessage());
+            }
+        }
         process.destroy();
         try {
             if (!process.waitFor(10, TimeUnit.SECONDS)) {
@@ -101,6 +161,11 @@ public class XrayProcessManager {
         lastExitCode = process.exitValue();
         stoppedAt = Instant.now();
         process = null;
+        try {
+            Files.deleteIfExists(pidFile);
+        } catch (IOException e) {
+            log.warn("Failed to delete PID file {}: {}", pidFile, e.getMessage());
+        }
         log.info("Xray stopped (exit={})", lastExitCode);
         return true;
     }
@@ -118,9 +183,10 @@ public class XrayProcessManager {
         return isRunning() ? process.pid() : null;
     }
 
-    public synchronized java.util.List<String> recentLogs(int limit) {
+    public synchronized List<String> recentLogs(int limit) {
         return logBuffer.stream().skip(Math.max(0, logBuffer.size() - limit)).toList();
     }
+
     private synchronized void appendLog(String line) {
         if (logBuffer.size() >= LOG_BUFFER_SIZE) {
             logBuffer.pollFirst();
@@ -131,6 +197,7 @@ public class XrayProcessManager {
 
     @PreDestroy
     public synchronized void onShutdown() {
+        log.info("Application shutting down, stopping Xray");
         stop();
     }
 }

@@ -21,10 +21,24 @@ public class SubscriptionService {
             Subscription s = Subscription.builder()
                     .userId(userId)
                     .token(generateToken())
+                    .xrayUuid(UUID.randomUUID().toString())
                     .enabled(true)
                     .build();
             return repository.save(s);
         });
+    }
+
+    public Subscription create(UUID userId, boolean enabled) {
+        return repository.save(Subscription.builder()
+                .userId(userId)
+                .token(generateToken())
+                .xrayUuid(UUID.randomUUID().toString())
+                .enabled(enabled)
+                .build());
+    }
+
+    public List<Subscription> findAllEnabled() {
+        return repository.findAllByEnabledTrue();
     }
 
     public Optional<Subscription> findByToken(String token) {
@@ -37,14 +51,6 @@ public class SubscriptionService {
 
     public List<Subscription> findAll() {
         return repository.findAll();
-    }
-
-    public Subscription create(UUID userId, boolean enabled) {
-        return repository.save(Subscription.builder()
-                .userId(userId)
-                .token(generateToken())
-                .enabled(enabled)
-                .build());
     }
 
     @Transactional

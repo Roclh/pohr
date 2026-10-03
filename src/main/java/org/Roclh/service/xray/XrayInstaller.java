@@ -15,7 +15,6 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.time.Duration;
 import java.util.Comparator;
-import java.util.concurrent.TimeUnit;
 
 @Slf4j
 @Service
@@ -73,12 +72,10 @@ public class XrayInstaller {
             throw new IOException("Download failed: HTTP " + response.statusCode() + " from " + url);
         }
 
-        // Распаковка
         if (Files.exists(tmpExtract)) {
             deleteRecursively(tmpExtract);
         }
         Files.createDirectories(tmpExtract);
-
         unzip(tmpZip, tmpExtract);
 
         Path extractedBinary = tmpExtract.resolve(binaryName());
@@ -86,50 +83,17 @@ public class XrayInstaller {
             throw new IOException("xray binary not found in archive: " + extractedBinary);
         }
 
-        Path configFile = home.resolve("config").resolve("config.json");
-        if (!Files.exists(configFile)) {
-            Files.writeString(configFile, """
-                    {
-                      "log": { "loglevel": "warning" },
-                      "inbounds": [
-                        {
-                          "listen": "0.0.0.0",
-                          "port": 8443,
-                          "protocol": "vless",
-                          "settings": {
-                            "clients": [
-                              { "id": "00000000-0000-0000-0000-000000000001", "email": "admin" }
-                            ],
-                            "decryption": "none"
-                          },
-                          "streamSettings": {
-                            "network": "tcp",
-                            "security": "none"
-                          }
-                        }
-                      ],
-                      "outbounds": [
-                        { "protocol": "freedom", "tag": "direct" }
-                      ]
-                    }
-                    """);
-            log.info("Created default Xray config at {}", configFile);
-        }
-
         Path targetBinary = binDir.resolve(binaryName());
         Path backupBinary = binDir.resolve(binaryName() + ".bak");
 
-        // Бэкап текущего
         if (Files.exists(targetBinary)) {
             Files.move(targetBinary, backupBinary, StandardCopyOption.REPLACE_EXISTING);
         }
         Files.move(extractedBinary, targetBinary, StandardCopyOption.REPLACE_EXISTING);
         targetBinary.toFile().setExecutable(true);
 
-        // Записываем версию
         versionRegistry.writeInstalledVersion(version);
 
-        // Чистим временные
         Files.deleteIfExists(tmpZip);
         deleteRecursively(tmpExtract);
 

@@ -3,3 +3,9 @@ databaseChangeLog:
       file: db/changelog/001-init/init.sql
   - include:
       file: db/changelog/002-subscriptions/subscriptions.sql
+  - include:
+      file: db/changelog/003-xray-configs/xray_configs.sql
+  - include:
+      file: db/changelog/004-subscriptions-uuid/subscriptions_uuid.sql
+  - include:
+      file: db/changelog/005-eu-nodes/eu_nodes.sql

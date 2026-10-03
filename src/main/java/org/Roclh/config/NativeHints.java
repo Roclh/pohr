@@ -35,10 +35,22 @@ public class NativeHints {
             // Liquibase changelog-парсеры (если упадёт — добавим точечно)
             hints.resources().registerPattern("db/changelog/**");
             hints.resources().registerPattern("i18n/messages*");
+            hints.resources().registerPattern("scripts/**");
+            hints.resources().registerPattern("templates/**");       // ← NEW
+            hints.resources().registerPattern("static/**");          // ← NEW
             hints.reflection().registerTypeIfPresent(classLoader, "sun.net.www.protocol.https.Handler",
                     MemberCategory.INVOKE_DECLARED_CONSTRUCTORS);
             hints.reflection().registerType(InstantStringConverter.class,
                     MemberCategory.INVOKE_DECLARED_CONSTRUCTORS);
+            hints.reflection().registerType(
+                    org.Roclh.model.dto.EnrollmentRequest.class,
+                    MemberCategory.values());
+            hints.reflection().registerType(
+                    org.Roclh.model.dto.EnrollmentResponse.class,
+                    MemberCategory.values());
+            hints.reflection().registerType(
+                    org.Roclh.model.dto.NodeHealthRequest.class,
+                    MemberCategory.values());
         }
     }
 }

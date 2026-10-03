@@ -1,20 +1,23 @@
 services:
   pohr:
-    build:
-      context: .
-      dockerfile: Dockerfile
     image: roclh/pohr:latest
+    container_name: pohr
     ports:
-      - "8080:8080"
+      - "${POHR_PORT:-8080}:8080"
+      - "${POHR_VPN_PORT:-8443}:8443"
     volumes:
       - pohr-data:/app/data
       - pohr-xray:/app/xray
+      - pohr-scripts:/app/scripts
     environment:
       - SPRING_PROFILES_ACTIVE=prod
-      - XRAY_AUTO_INSTALL=true
-      - XRAY_VERSION=latest
+      - POHR_PUBLIC_URL=${POHR_PUBLIC_URL}
+      - POHR_SSH_AUTHORIZED_KEYS=${POHR_SSH_AUTHORIZED_KEYS:-}
+      - XRAY_AUTO_INSTALL=${XRAY_AUTO_INSTALL:-true}
+      - EU_XRAY_VERSION=${EU_XRAY_VERSION:-latest}
     restart: unless-stopped
 
 volumes:
   pohr-data:
   pohr-xray:
+  pohr-scripts:

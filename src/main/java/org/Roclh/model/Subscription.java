@@ -36,6 +36,8 @@ public class Subscription {
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
+    @Column(name = "xray_uuid", length = 36, unique = true)
+    private String xrayUuid;
 
     @PrePersist
     void onCreate() {

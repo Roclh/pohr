@@ -276,3 +276,25 @@ button:disabled { opacity: .4; cursor: not-allowed; }
     min-width: 90px;
 }
 .copy-btn:hover { background: #f5f6f8; }
+
+.config-editor {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 6px;
+    font-family: "SF Mono", Consolas, monospace;
+    font-size: .85rem;
+    line-height: 1.5;
+    background: #f8f9fb;
+    color: #1f2329;
+    resize: vertical;
+    white-space: pre;
+    overflow-wrap: normal;
+    overflow-x: auto;
+    tab-size: 2;
+}
+.config-editor:focus { outline: 2px solid #1d4ed8; outline-offset: -1px; }
+.link-button.on-light { color: #1d4ed8; }
+.link-button.on-light:hover { color: #1e3a8a; }
+.link-button.on-light.danger { color: #b3261e; }
+.link-button.on-light.danger:hover { color: #7a1a14; }

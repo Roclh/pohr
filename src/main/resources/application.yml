@@ -19,5 +19,28 @@ spring:
     change-log: classpath:db/changelog/db.changelog-master.yaml
     enabled: true
 
+pohr:
+  public-url: ${POHR_PUBLIC_URL:}
+  scripts:
+    home: ${SCRIPTS_HOME:./scripts}
+  eu-nodes:
+    enroll-token-ttl: 1h
+    cleanup-interval: 600000
+    tunnel-socks-port: 10808
+    xray-version: ${EU_XRAY_VERSION:latest}
+    default-port: 8443
+    tunnel-check-interval: 60000       # ms = 1 минут
+    tunnel-check-initial-delay: 30000   # 30 сек — дать Xray время подняться
+    tunnel-check-timeout-seconds: 15
+    tunnel-check-failures-threshold: 3
+    tunnel-check-url: https://api.ipify.org
+
+xray:
+  server:
+    host: ${XRAY_HOST:127.0.0.1}
+  reality:
+    dest: ${XRAY_REALITY_DEST:www.microsoft.com:443}
+    server-names: ${XRAY_REALITY_SNI:www.microsoft.com}
+
 server:
   port: 8080

@@ -44,6 +44,7 @@ public class WebController {
             String url = "http://" + host + ":" + port + "/sub/" + sub.getToken();
             model.addAttribute("subscriptionUrl", url);
             model.addAttribute("subscriptionEnabled", sub.isEnabled());
+            model.addAttribute("subscriptionToken", sub.getToken());
         }
         return "home";
     }

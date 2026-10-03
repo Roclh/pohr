@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head(#{script.form.title})}"></head>
+<body>
+
+<header th:replace="~{fragments/layout :: header}"></header>
+
+<main class="container">
+    <h1 th:text="${isNew} ? #{script.form.title.create} : #{script.form.title.edit}">Script</h1>
+
+    <div th:if="${successMessage}" class="alert success" th:text="#{${successMessage}}"></div>
+    <div th:if="${errorMessage}" class="alert error" th:text="${errorMessage}"></div>
+    <div th:if="${bundled && !matchesBundled}" class="alert info" th:text="#{script.form.modifiedBanner}">
+        This script differs from the bundled version. Save, or Reset to bundled to restore.
+    </div>
+
+    <form th:if="${isNew}"
+          th:action="@{/admin/client-scripts}" method="post" class="form card">
+        <div class="field">
+            <label for="name" th:text="#{script.form.name}">Name</label>
+            <input type="text" id="name" name="name" required
+                   placeholder="v2rayn-setup.bat">
+            <p class="hint" th:text="#{script.form.name.hint}">
+                File name with extension. Allowed: .bat, .cmd, .ps1, .sh, .txt
+            </p>
+        </div>
+        <div class="field">
+            <label for="content" th:text="#{script.form.content}">Content</label>
+            <textarea id="content" name="content" rows="25" spellcheck="false"
+                      class="config-editor"></textarea>
+        </div>
+        <div class="form-actions">
+            <button type="submit" th:text="#{script.form.create}">Create</button>
+            <a class="link" th:href="@{/admin/client-scripts}" th:text="#{script.form.cancel}">Cancel</a>
+        </div>
+    </form>
+
+    <form th:unless="${isNew}"
+          th:action="@{/admin/client-scripts/{n}(n=${name})}" method="post" class="form card">
+        <div class="field">
+            <label th:text="#{script.form.name}">Name</label>
+            <input type="text" th:value="${name}" readonly>
+        </div>
+        <div class="field">
+            <label for="content" th:text="#{script.form.content}">Content</label>
+            <textarea id="content" name="content" rows="25" spellcheck="false"
+                      class="config-editor" th:text="${content}"></textarea>
+        </div>
+        <div class="form-actions">
+            <button type="submit" th:text="#{script.form.save}">Save</button>
+            <a class="link" th:href="@{/admin/client-scripts}" th:text="#{script.form.cancel}">Cancel</a>
+            <button type="button" class="link-button on-light" id="format-btn"
+                    th:text="#{script.form.format}">Format</button>
+        </div>
+    </form>
+
+    <div th:unless="${isNew}" class="toolbar" style="margin-top: 12px;">
+        <form th:if="${bundled}" th:action="@{/admin/client-scripts/{n}/reset(n=${name})}"
+              method="post" class="inline"
+              onsubmit="return confirm(this.dataset.confirm)"
+              th:data-confirm="#{script.form.reset.confirm}">
+            <button type="submit" class="link-button on-light"
+                    th:text="#{script.form.reset}">Reset to bundled</button>
+        </form>
+        <a class="link" th:href="@{/admin/client-scripts}" th:text="#{common.back}">Back</a>
+    </div>
+</main>
+
+<script>
+    (function () {
+        const ta = document.getElementById('content');
+        if (!ta) return;
+        ta.addEventListener('keydown', (e) => {
+            if (e.key !== 'Tab') return;
+            e.preventDefault();
+            const s = ta.selectionStart, en = ta.selectionEnd, v = ta.value;
+            if (s === en) {
+                ta.value = v.slice(0, s) + '  ' + v.slice(en);
+                ta.selectionStart = ta.selectionEnd = s + 2;
+            } else {
+                const selected = v.slice(s, en);
+                const indented = selected.replace(/\n/g, '\n  ');
+                ta.value = v.slice(0, s) + '  ' + indented + v.slice(en);
+                ta.selectionStart = s;
+                ta.selectionEnd = en + 2 + (indented.length - selected.length);
+            }
+        });
+    })();
+</script>
+
+</body>
+</html>

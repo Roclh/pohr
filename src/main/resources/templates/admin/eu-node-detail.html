@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head(#{node.detail.title})}"></head>
+<body>
+
+<header th:replace="~{fragments/layout :: header}"></header>
+
+<main class="container">
+    <h1>
+        <span th:text="#{node.detail.title}">Node details</span> —
+        <code th:text="${node.name()}">eu-de-1</code>
+    </h1>
+
+    <div th:if="${successMessage}" class="alert success" th:text="#{${successMessage}}"></div>
+    <div th:if="${errorMessage}" class="alert error" th:text="${errorMessage}"></div>
+
+    <section class="card">
+        <h2 th:text="#{node.detail.info}">Info</h2>
+        <table class="table">
+            <tbody>
+            <tr>
+                <th th:text="#{node.detail.id}">ID</th>
+                <td><code th:text="${node.id()}">uuid</code></td>
+            </tr>
+            <tr>
+                <th th:text="#{node.detail.name}">Name</th>
+                <td><code th:text="${node.name()}">eu-de-1</code></td>
+            </tr>
+            <tr>
+                <th th:text="#{node.detail.host}">Host</th>
+                <td><code th:text="${node.host()} + ':' + ${node.port()}">1.2.3.4:8443</code></td>
+            </tr>
+            <tr>
+                <th th:text="#{node.detail.status}">Status</th>
+                <td>
+                    <span class="badge"
+                          th:classappend="${node.status().name() == 'HEALTHY' ? 'enabled'
+                             : (node.status().name() == 'UNREACHABLE' or node.status().name() == 'PENDING') ? 'disabled'
+                             : 'user'}"
+                          th:text="${#messages.msg('node.status.' + #strings.toLowerCase(node.status().name()))}">Healthy</span>
+                </td>
+            </tr>
+            <tr>
+                <th th:text="#{node.detail.publicKey}">Public key</th>
+                <td><code th:text="${rawNode.realityPublicKey}">...</code></td>
+            </tr>
+            <tr>
+                <th th:text="#{node.detail.shortId}">Short ID</th>
+                <td><code th:text="${rawNode.realityShortId}">aabb</code></td>
+            </tr>
+            <tr>
+                <th th:text="#{node.detail.tunnelUuid}">Tunnel UUID</th>
+                <td><code th:text="${rawNode.tunnelUuid}">uuid</code></td>
+            </tr>
+            <tr>
+                <th th:text="#{node.detail.xrayVersion}">Xray version</th>
+                <td th:text="${node.xrayVersion()} ?: '—'">26.3.27</td>
+            </tr>
+            <tr>
+                <th th:text="#{node.detail.agentVersion}">Agent version</th>
+                <td th:text="${node.agentVersion()} ?: '—'">1.0.0</td>
+            </tr>
+            <tr>
+                <th th:text="#{node.detail.configHash}">Config hash</th>
+                <td><code th:text="${node.configHash()} ?: '—'">abc...</code></td>
+            </tr>
+            <tr>
+                <th th:text="#{node.detail.lastHealth}">Last health</th>
+                <td th:text="${node.lastHealthAt() != null ? #strings.substringBefore(node.lastHealthAt().toString(), '.') : '—'}">
+                    —
+                </td>
+            </tr>
+            <tr>
+                <th th:text="#{node.detail.lastTunnelCheck}">Last tunnel check</th>
+                <td th:text="${node.lastTunnelCheckAt() != null ? #strings.substringBefore(node.lastTunnelCheckAt().toString(), '.') : '—'}">
+                    —
+                </td>
+            </tr>
+            <tr>
+                <th th:text="#{node.detail.lastTunnelIp}">Tunnel IP</th>
+                <td th:text="${node.lastTunnelIp() != null ? node.lastTunnelIp() : '—'}">—</td>
+            </tr>
+            <tr>
+                <th th:text="#{node.detail.enrolledAt}">Enrolled at</th>
+                <td th:text="${#strings.substringBefore(node.enrolledAt().toString(), '.')}">—</td>
+            </tr>
+            <tr>
+                <th th:text="#{node.detail.nodeSecret}">Node secret</th>
+                <td>
+                    <details>
+                        <summary th:text="#{node.detail.secret.reveal}">Reveal</summary>
+                        <p class="field-error" th:text="#{node.detail.secret.warning}"></p>
+                        <code th:text="${rawNode.nodeSecret}">...</code>
+                    </details>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+    </section>
+
+    <section class="card">
+        <h2 th:text="#{node.detail.actions}">Actions</h2>
+
+        <div class="form-actions" style="flex-wrap: wrap;">
+            <form th:action="@{/admin/nodes/{id}/re-enroll(id=${node.id()})}" method="post" class="inline"
+                  onsubmit="return confirm(this.dataset.confirm)"
+                  th:data-confirm="#{node.detail.re-enroll.confirm}">
+                <button type="submit" th:text="#{node.detail.re-enroll}">Re-enroll</button>
+            </form>
+
+            <form th:action="@{/admin/nodes/{id}/rotate-tunnel(id=${node.id()})}" method="post" class="inline"
+                  onsubmit="return confirm(this.dataset.confirm)"
+                  th:data-confirm="#{node.detail.rotate-tunnel.confirm}">
+                <button type="submit" class="link-button on-light"
+                        th:text="#{node.detail.rotate-tunnel}">Rotate tunnel
+                </button>
+            </form>
+
+            <form th:action="@{/admin/nodes/{id}/regenerate-secret(id=${node.id()})}" method="post" class="inline"
+                  onsubmit="return confirm(this.dataset.confirm)"
+                  th:data-confirm="#{node.detail.regenerate-secret.confirm}">
+                <button type="submit" class="link-button on-light"
+                        th:text="#{node.detail.regenerate-secret}">Regenerate secret
+                </button>
+            </form>
+
+            <form th:action="@{/admin/nodes/{id}/delete(id=${node.id()})}" method="post" class="inline"
+                  onsubmit="return confirm(this.dataset.confirm)"
+                  th:data-confirm="#{node.detail.delete.confirm}">
+                <button type="submit" class="link-button danger on-light"
+                        th:text="#{node.detail.delete}">Delete
+                </button>
+            </form>
+        </div>
+    </section>
+
+    <div class="toolbar">
+        <a class="link" th:href="@{/admin/nodes}" th:text="#{common.back}">Back</a>
+    </div>
+</main>
+
+</body>
+</html>

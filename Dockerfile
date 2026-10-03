@@ -1,34 +1,43 @@
-# syntax=docker/dockerfile:1
+# syntax=docker/dockerfile:1.7
 
-# === Этап 1: Сборка нативного бинарника ===
-FROM ghcr.io/graalvm/graalvm-community:25 AS builder
-WORKDIR /app
+# ---------- Stage 1: build native binary ----------
+FROM ghcr.io/graalvm/native-image-community:25 AS builder
 
-COPY gradlew .
-COPY gradle/ gradle/
-COPY settings.gradle build.gradle ./
-RUN chmod +x gradlew && ./gradlew dependencies --no-daemon || true
+WORKDIR /build
 
-COPY src/ src/
-RUN ./gradlew nativeCompile --no-daemon
+COPY gradlew gradlew
+COPY gradle gradle
+COPY build.gradle settings.gradle gradle.properties ./
+COPY src src
 
-# === Этап 2: Runtime (без Xray — он ставится в volume) ===
+RUN chmod +x gradlew && \
+    ./gradlew nativeCompile --no-daemon \
+      -Dorg.gradle.jvmargs=-Xmx4g \
+      -Dorg.gradle.java.installations.paths=
+
+# ---------- Stage 2: runtime ----------
 FROM debian:bookworm-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        ca-certificates curl unzip \
-    && rm -rf /var/lib/apt/lists/*
-
-RUN useradd --system --create-home --shell /bin/false pohr
+        ca-certificates tzdata \
+    && rm -rf /var/lib/apt/lists/* \
+    && useradd -m -u 1000 -s /bin/bash pohr
 
 WORKDIR /app
-COPY --from=builder /app/build/native/nativeCompile/pohr /app/pohr
+
+COPY --from=builder /build/build/native/nativeCompile/pohr /app/pohr
 RUN chmod +x /app/pohr
 
-RUN mkdir -p /app/data /app/xray/bin /app/xray/config \
+RUN mkdir -p /app/data /app/scripts /app/xray/bin /app/xray/config \
     && chown -R pohr:pohr /app
 
 USER pohr
 
-EXPOSE 8080
+ENV SCRIPTS_HOME=/app/scripts \
+    SPRING_PROFILES_ACTIVE=prod \
+    XRAY_AUTO_INSTALL=true \
+    EU_XRAY_VERSION=latest
+
+EXPOSE 8080 8443
+
 ENTRYPOINT ["/app/pohr"]

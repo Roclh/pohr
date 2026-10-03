@@ -48,6 +48,7 @@ graalvmNative {
             mainClass = 'org.Roclh.PohrApplication'
             buildArgs.add('--no-fallback')
             buildArgs.add('-H:+ReportExceptionStackTraces')
+            buildArgs.add('-H:+AddAllCharsets')
             runtimeArgs.add('--enable-native-access=ALL-UNNAMED')
         }
     }

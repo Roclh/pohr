@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head(#{admin.xray.configs.title})}"></head>
+<body>
+
+<header th:replace="~{fragments/layout :: header}"></header>
+
+<main class="container">
+    <h1 th:text="#{admin.xray.configs.title}">Xray configurations</h1>
+
+    <div th:if="${successMessage}" class="alert success" th:text="#{${successMessage}}"></div>
+    <div th:if="${errorMessage}" class="alert error" th:text="${errorMessage}"></div>
+
+    <p class="muted" th:text="#{admin.xray.configs.text}">Only one config is active at a time.</p>
+
+    <div class="toolbar">
+        <a class="button" th:href="@{/admin/xray/configs/new}" th:text="#{admin.xray.configs.new}">New</a>
+        <a class="link" th:href="@{/admin/xray}" th:text="#{common.back}">Back</a>
+    </div>
+
+    <table class="table" th:if="${!configs.isEmpty()}">
+        <thead>
+        <tr>
+            <th th:text="#{xray.config.list.name}">Name</th>
+            <th th:text="#{xray.config.list.description}">Description</th>
+            <th th:text="#{xray.config.list.active}">Active</th>
+            <th th:text="#{xray.config.list.updated}">Updated</th>
+            <th class="actions" th:text="#{xray.config.list.actions}">Actions</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="cfg : ${configs}">
+            <td>
+                <code th:text="${cfg.name}">default</code>
+            </td>
+            <td th:text="${cfg.description}">—</td>
+            <td>
+                <span class="badge" th:classappend="${cfg.active} ? 'enabled' : 'disabled'"
+                      th:text="${cfg.active} ? #{common.yes} : #{common.no}">yes</span>
+            </td>
+            <td th:text="${cfg.updatedAt}">2026-01-01</td>
+            <td class="actions">
+                <a class="link" th:href="@{/admin/xray/configs/{id}/edit(id=${cfg.id})}"
+                   th:text="#{xray.config.list.edit}">Edit</a>
+                <form th:if="${!cfg.active}"
+                      th:action="@{/admin/xray/configs/{id}/activate(id=${cfg.id})}"
+                      method="post" class="inline"
+                      onsubmit="return confirm(this.dataset.confirm)"
+                      th:data-confirm="#{xray.config.list.activate.confirm}">
+                    <button type="submit" class="link-button on-light"
+                            th:text="#{xray.config.list.activate}">Activate</button>
+                </form>
+                <form th:if="${!cfg.active}"
+                      th:action="@{/admin/xray/configs/{id}/delete(id=${cfg.id})}"
+                      method="post" class="inline"
+                      onsubmit="return confirm(this.dataset.confirm)"
+                      th:data-confirm="#{xray.config.list.delete.confirm}">
+                    <button type="submit" class="link-button danger"
+                            th:text="#{xray.config.list.delete}">Delete</button>
+                </form>
+                <form th:action="@{/admin/xray/configs/{id}/clone(id=${cfg.id})}" method="post" class="inline">
+                    <button type="submit" class="link-button on-light" th:text="#{xray.config.list.clone}">Duplicate</button>
+                </form>
+            </td>
+        </tr>
+        </tbody>
+    </table>
+
+    <p th:if="${configs.isEmpty()}" class="muted" th:text="#{xray.config.list.empty}">No configurations yet</p>
+</main>
+
+</body>
+</html>

@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head(#{admin.scripts.title})}"></head>
+<body>
+
+<header th:replace="~{fragments/layout :: header}"></header>
+
+<main class="container">
+    <h1 th:text="#{admin.scripts.title}">Client scripts</h1>
+
+    <div th:if="${successMessage}" class="alert success" th:text="#{${successMessage}}"></div>
+    <div th:if="${errorMessage}" class="alert error" th:text="${errorMessage}"></div>
+
+    <p class="muted" th:text="#{admin.scripts.text}">
+        Scripts live on disk (SCRIPTS_HOME volume). Bundled copies are seeded on first start; edits survive container updates.
+    </p>
+
+    <div class="toolbar">
+        <a class="button" th:href="@{/admin/client-scripts/new}" th:text="#{admin.scripts.new}">New script</a>
+        <a class="link" th:href="@{/admin}" th:text="#{common.back}">Back</a>
+    </div>
+
+    <table class="table" th:if="${!scripts.isEmpty()}">
+        <thead>
+        <tr>
+            <th th:text="#{script.list.name}">Name</th>
+            <th th:text="#{script.list.size}">Size</th>
+            <th th:text="#{script.list.modified}">Modified</th>
+            <th th:text="#{script.list.bundled}">Bundled</th>
+            <th class="actions" th:text="#{script.list.actions}">Actions</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="s : ${scripts}">
+            <td><code th:text="${s.name()}">v2rayn-setup.bat</code></td>
+            <td th:text="${s.size()}">1024</td>
+            <td th:text="${#strings.substringBefore(s.modifiedAt().toString(), '.')}">2026-01-01T00:00:00</td>
+            <td>
+                <span th:if="${s.bundled() && s.matchesBundled()}" class="badge enabled">bundled</span>
+                <span th:if="${s.bundled() && !s.matchesBundled()}" class="badge disabled">modified</span>
+                <span th:if="${!s.bundled()}" class="badge user">custom</span>
+            </td>
+            <td class="actions">
+                <a class="link" th:href="@{/admin/client-scripts/{n}/edit(n=${s.name()})}"
+                   th:text="#{script.list.edit}">Edit</a>
+                <form th:action="@{/admin/client-scripts/{n}/delete(n=${s.name()})}"
+                      method="post" class="inline"
+                      onsubmit="return confirm(this.dataset.confirm)"
+                      th:data-confirm="#{script.list.delete.confirm}">
+                    <button type="submit" class="link-button danger on-light"
+                            th:text="#{script.list.delete}">Delete</button>
+                </form>
+            </td>
+        </tr>
+        </tbody>
+    </table>
+
+    <p th:if="${scripts.isEmpty()}" class="muted" th:text="#{script.list.empty}">No scripts yet</p>
+</main>
+
+</body>
+</html>

@@ -12,6 +12,7 @@
     <div th:if="${errorMessage}" class="alert error" th:text="#{${errorMessage}}"></div>
 
     <div class="toolbar">
+        <a class="button" th:href="@{/admin/xray/configs}" th:text="#{admin.xray.configs.manage}">Configs</a>
         <a class="link" th:href="@{/admin}" th:text="#{common.back}">Back</a>
     </div>
 

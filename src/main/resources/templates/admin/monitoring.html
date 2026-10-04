@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head(#{admin.monitoring.title})}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<nav th:replace="~{fragments/layout :: crumbs('admin.monitoring.title', null, null)}"></nav>
+
+<main class="container">
+    <h1 th:text="#{admin.monitoring.title}">Monitoring</h1>
+
+    <p class="muted" th:text="#{admin.monitoring.text}">
+        Метрики контейнера и Xray за последние 24 часа. Точка в минуту.
+    </p>
+
+    <!-- ===== Current values ===== -->
+    <section class="card" th:if="${latest != null}">
+        <h2 th:text="#{admin.monitoring.current}">Сейчас</h2>
+        <div class="metric-grid">
+            <div class="metric-tile">
+                <div class="metric-label" th:text="#{admin.monitoring.cpu}">CPU (pod)</div>
+                <div class="metric-value"
+                     th:text="${latest.podCpuPct() != null
+                         ? #numbers.formatDecimal(latest.podCpuPct(), 1, 1) + ' %' : '—'}">—</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label" th:text="#{admin.monitoring.mem}">RAM (pod)</div>
+                <div class="metric-value"
+                     th:text="${latest.podMemBytes() != null
+                         ? T(java.lang.String).format('%.1f MB', latest.podMemBytes() / 1048576.0) : '—'}">—</div>
+                <div class="metric-sub"
+                     th:if="${latest.podMemLimitBytes() != null}"
+                     th:text="'limit: ' + ${T(java.lang.String).format('%.0f MB', latest.podMemLimitBytes() / 1048576.0)}">—</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label" th:text="#{admin.monitoring.heap}">JVM heap</div>
+                <div class="metric-value"
+                     th:text="${latest.jvmHeapBytes() != null
+                         ? T(java.lang.String).format('%.1f MB', latest.jvmHeapBytes() / 1048576.0) : '—'}">—</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label" th:text="#{admin.monitoring.threads}">Threads</div>
+                <div class="metric-value" th:text="${latest.jvmThreads()} ?: '—'">—</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label" th:text="#{admin.monitoring.xray}">Xray</div>
+                <div class="metric-value">
+                    <span th:if="${latest.xrayRunning()}" class="badge enabled" th:text="#{admin.monitoring.running}">running</span>
+                    <span th:unless="${latest.xrayRunning()}" class="badge disabled" th:text="#{admin.monitoring.stopped}">stopped</span>
+                </div>
+                <div class="metric-sub"
+                     th:if="${latest.xrayMemBytes() != null and latest.xrayCpuPct() != null}"
+                     th:text="${T(java.lang.String).format('%.0f MB · %.1f %%', latest.xrayMemBytes() / 1048576.0, latest.xrayCpuPct())}">—</div>
+            </div>
+        </div>
+    </section>
+
+    <!-- ===== Charts ===== -->
+    <section class="card" th:if="${sampleCount > 1}">
+        <h2 th:text="#{admin.monitoring.charts}">24 часа</h2>
+
+        <div class="chart-block">
+            <div class="chart-title" th:text="#{admin.monitoring.cpu}">CPU (pod), %</div>
+            <svg viewBox="0 0 600 120" preserveAspectRatio="none" class="chart">
+                <line x1="0" y1="120" x2="600" y2="120" class="chart-axis"/>
+                <path th:attr="d=${cpuPath}" class="chart-line chart-line-cpu"/>
+            </svg>
+        </div>
+
+        <div class="chart-block">
+            <div class="chart-title" th:text="#{admin.monitoring.mem}">RAM (pod), MB</div>
+            <svg viewBox="0 0 600 120" preserveAspectRatio="none" class="chart">
+                <line x1="0" y1="120" x2="600" y2="120" class="chart-axis"/>
+                <path th:attr="d=${memPath}" class="chart-line chart-line-mem"/>
+            </svg>
+        </div>
+
+        <div class="chart-block" th:if="${!#strings.isEmpty(xrayPath)}">
+            <div class="chart-title" th:text="#{admin.monitoring.xrayMem}">Xray RSS, MB</div>
+            <svg viewBox="0 0 600 120" preserveAspectRatio="none" class="chart">
+                <line x1="0" y1="120" x2="600" y2="120" class="chart-axis"/>
+                <path th:attr="d=${xrayPath}" class="chart-line chart-line-xray"/>
+            </svg>
+        </div>
+    </section>
+
+    <p th:if="${sampleCount <= 1}" class="muted"
+       th:text="#{admin.monitoring.noData}">Метрики появятся через минуту после старта.</p>
+
+    <!-- ===== EU nodes ===== -->
+    <section class="card">
+        <h2 th:text="#{admin.monitoring.nodes}">EU nodes</h2>
+        <table class="table" th:if="${!#lists.isEmpty(nodes)}">
+            <thead>
+            <tr>
+                <th th:text="#{node.list.name}">Name</th>
+                <th th:text="#{node.list.status}">Status</th>
+                <th th:text="#{node.list.tunnel}">Tunnel</th>
+                <th th:text="#{node.list.health}">Last health</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="n : ${nodes}">
+                <td data-label="Name"><code th:text="${n.name()}">eu-de-1</code></td>
+                <td data-label="Status">
+                    <span class="badge"
+                          th:classappend="${n.status().name() == 'HEALTHY' ? 'enabled'
+                                         : (n.status().name() == 'UNREACHABLE' or n.status().name() == 'PENDING') ? 'disabled'
+                                         : 'user'}"
+                          th:text="${#messages.msg('node.status.' + #strings.toLowerCase(n.status().name()))}">—</span>
+                </td>
+                <td data-label="Tunnel"
+                    th:text="${n.lastTunnelIp()} ?: '—'">—</td>
+                <td data-label="Health"
+                    th:text="${n.lastHealthAt() != null
+                        ? #strings.substringBefore(n.lastHealthAt().toString(), '.') : '—'}">—</td>
+            </tr>
+            </tbody>
+        </table>
+        <p th:if="${#lists.isEmpty(nodes)}" class="muted" th:text="#{node.list.empty}">No nodes</p>
+    </section>
+</main>
+</body>
+</html>

@@ -4,6 +4,7 @@
 <body>
 
 <header th:replace="~{fragments/layout :: header}"></header>
+<nav th:replace="~{fragments/layout :: crumbs('admin.subscriptions.title', null, null)}"></nav>
 
 <main class="container">
     <h1 th:text="#{admin.subscriptions.title}">Subscriptions</h1>
@@ -13,7 +14,6 @@
 
     <div class="toolbar">
         <a class="button" th:href="@{/admin/subscriptions/new}" th:text="#{admin.subscriptions.new}">New</a>
-        <a class="link" th:href="@{/admin}" th:text="#{common.back}">Back</a>
     </div>
 
     <table class="table" th:if="${!#lists.isEmpty(subscriptions)}">
@@ -28,8 +28,8 @@
         </thead>
         <tbody>
         <tr th:each="sub : ${subscriptions}">
-            <td th:text="${sub.username()}">admin</td>
-            <td>
+            <td data-label="User" th:text="${sub.username()}">admin</td>
+            <td data-label="URL">
                 <div class="copy-box">
                     <input type="text" readonly th:value="${sub.url()}" th:id="'url-' + ${sub.id()}">
                     <button type="button" class="copy-btn"
@@ -37,11 +37,12 @@
                             th:text="#{subscription.list.copy}">Copy</button>
                 </div>
             </td>
-            <td>
-                <span class="badge" th:classappend="${sub.enabled()} ? 'enabled' : 'disabled'"
-                      th:text="${sub.enabled()} ? #{common.yes} : #{common.no}">yes</span>
+            <td data-label="Active">
+        <span class="badge" th:classappend="${sub.enabled()} ? 'enabled' : 'disabled'"
+              th:text="${sub.enabled()} ? #{common.yes} : #{common.no}">yes</span>
             </td>
-            <td th:text="${sub.createdAt()}">2026-01-01</td>
+            <td data-label="Created"
+                th:text="${#strings.substringBefore(sub.createdAt().toString(), '.')}">2026-01-01T00:00:00</td>
             <td class="actions">
                 <form th:action="@{/admin/subscriptions/{id}/toggle(id=${sub.id()})}"
                       method="post" class="inline">

@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head(#{admin.clientConfigs.title})}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<nav th:replace="~{fragments/layout :: crumbs('admin.clientConfigs.title', null, null)}"></nav>
+
+<main class="container">
+    <h1 th:text="#{admin.clientConfigs.title}">Client configs</h1>
+
+    <div th:if="${successMessage}" class="alert success" th:text="#{${successMessage}}"></div>
+    <div th:if="${errorMessage}" class="alert error" th:text="${errorMessage}"></div>
+
+    <p class="muted" th:text="#{admin.clientConfigs.text}">
+        HTTP-заголовки, которые Pohr отправляет вместе с подпиской в зависимости от User-Agent клиента.
+    </p>
+    <table class="table" th:if="${!#lists.isEmpty(configs)}">
+        <thead>
+        <tr>
+            <th th:text="#{clientConfig.list.name}">Client</th>
+            <th th:text="#{clientConfig.list.ua}">User-Agent</th>
+            <th th:text="#{clientConfig.list.enabled}">Enabled</th>
+            <th th:text="#{clientConfig.list.updated}">Updated</th>
+            <th class="actions" th:text="#{clientConfig.list.actions}">Actions</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="c : ${configs}">
+            <td data-label="Client"><code th:text="${c.clientName}">happ</code></td>
+            <td data-label="User-Agent"><code th:text="${c.userAgentPattern}">Happ</code></td>
+            <td data-label="Enabled">
+        <span class="badge" th:classappend="${c.enabled} ? 'enabled' : 'disabled'"
+              th:text="${c.enabled} ? #{common.yes} : #{common.no}">yes</span>
+            </td>
+            <td data-label="Updated"
+                th:text="${#strings.substringBefore(c.updatedAt.toString(), '.')}">2026-10-04T00:00:00</td>
+            <td class="actions">
+                <a class="link" th:href="@{/admin/client-configs/{n}/edit(n=${c.clientName})}"
+                   th:text="#{clientConfig.list.edit}">Edit</a>
+            </td>
+        </tr>
+        </tbody>
+    </table>
+
+    <p th:if="${#lists.isEmpty(configs)}" class="muted" th:text="#{clientConfig.list.empty}">No configs yet</p>
+</main>
+</body>
+</html>

@@ -4,6 +4,7 @@
 <body>
 
 <header th:replace="~{fragments/layout :: header}"></header>
+<nav th:replace="~{fragments/layout :: crumbs('node.form.title', 'admin.nodes.title', '/admin/nodes')}"></nav>
 
 <main class="container narrow">
     <h1 th:text="#{node.form.title}">New EU node</h1>

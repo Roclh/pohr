@@ -113,6 +113,15 @@ public class NativeHints {
                     MemberCategory.values());
             hints.reflection().registerType(org.Roclh.model.dto.InviteForm.class,       MemberCategory.values());
             hints.reflection().registerType(org.Roclh.model.dto.InviteAcceptForm.class, MemberCategory.values());
+            hints.reflection().registerType(
+                    org.Roclh.model.dto.XrayClientOption.class,
+                    MemberCategory.values());
+            hints.reflection().registerType(
+                    org.Roclh.model.dto.ClientConfigForm.class,
+                    MemberCategory.values());
+            hints.reflection().registerType(
+                    org.Roclh.model.dto.MetricsSnapshot.class,
+                    MemberCategory.values());
         }
     }
 }

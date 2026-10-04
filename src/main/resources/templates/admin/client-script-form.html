@@ -4,6 +4,7 @@
 <body>
 
 <header th:replace="~{fragments/layout :: header}"></header>
+<nav th:replace="~{fragments/layout :: crumbs('script.form.title', 'admin.scripts.title', '/admin/client-scripts')}"></nav>
 
 <main class="container">
     <h1 th:text="${isNew} ? #{script.form.title.create} : #{script.form.title.edit}">Script</h1>

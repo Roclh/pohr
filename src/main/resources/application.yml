@@ -36,6 +36,10 @@ pohr:
     tunnel-check-url: https://api.ipify.org
   invites:
     cleanup-interval: 600000
+  metrics:
+    interval-ms: 60000
+    initial-delay-ms: 15000
+    retention-days: 7
 
 xray:
   server:

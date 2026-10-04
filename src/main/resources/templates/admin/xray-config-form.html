@@ -4,6 +4,7 @@
 <body>
 
 <header th:replace="~{fragments/layout :: header}"></header>
+<nav th:replace="~{fragments/layout :: crumbs('xray.config.form.title', 'admin.xray.configs.title', '/admin/xray/configs')}"></nav>
 
 <main class="container">
     <h1 th:text="${mode == 'create'} ? #{xray.config.form.title.create} : #{xray.config.form.title.edit}">Config</h1>

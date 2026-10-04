@@ -4,6 +4,7 @@
 <body>
 
 <header th:replace="~{fragments/layout :: header}"></header>
+<nav th:replace="~{fragments/layout :: crumbs('admin.users.title', null, null)}"></nav>
 
 <main class="container">
     <h1 th:text="#{admin.users.title}">Users</h1>
@@ -13,7 +14,6 @@
 
     <div class="toolbar">
         <a class="button" th:href="@{/admin/users/new}" th:text="#{admin.users.new}">New user</a>
-        <a class="link" th:href="@{/admin}" th:text="#{common.back}">Back</a>
     </div>
 
     <table class="table" th:if="${!#lists.isEmpty(users)}">
@@ -28,16 +28,17 @@
         </thead>
         <tbody>
         <tr th:each="user : ${users}">
-            <td th:text="${user.username}">admin</td>
-            <td>
-                <span class="badge" th:classappend="${user.role == 'ADMIN'} ? 'admin' : 'user'"
-                      th:text="${user.role}">ADMIN</span>
+            <td data-label="Login" th:text="${user.username}">admin</td>
+            <td data-label="Role">
+        <span class="badge" th:classappend="${user.role == 'ADMIN'} ? 'admin' : 'user'"
+              th:text="${user.role}">ADMIN</span>
             </td>
-            <td>
-                <span class="badge" th:classappend="${user.enabled} ? 'enabled' : 'disabled'"
-                      th:text="${user.enabled} ? #{common.yes} : #{common.no}">yes</span>
+            <td data-label="Enabled">
+        <span class="badge" th:classappend="${user.enabled} ? 'enabled' : 'disabled'"
+              th:text="${user.enabled} ? #{common.yes} : #{common.no}">yes</span>
             </td>
-            <td th:text="${user.createdAt}">2026-01-01</td>
+            <td data-label="Created"
+                th:text="${#strings.substringBefore(user.createdAt.toString(), '.')}">2026-01-01T00:00:00</td>
             <td class="actions">
                 <a class="link" th:href="@{/admin/users/{id}/edit(id=${user.id})}"
                    th:text="#{user.list.edit}">Edit</a>

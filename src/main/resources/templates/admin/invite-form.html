@@ -3,6 +3,7 @@
 <head th:replace="~{fragments/layout :: head(#{invite.form.title})}"></head>
 <body>
 <header th:replace="~{fragments/layout :: header}"></header>
+<nav th:replace="~{fragments/layout :: crumbs('invite.form.title', 'admin.invites.title', '/admin/invites')}"></nav>
 
 <main class="container narrow">
     <h1 th:text="#{invite.form.title}">New invite</h1>

@@ -9,11 +9,70 @@
 <main class="container">
     <h1 th:text="#{home.title(${username})}">Welcome</h1>
 
-    <section class="card">
-        <h2 th:text="#{home.subscription.title}">Your subscription</h2>
+    <section class="card" th:if="${subscriptionUrl}">
+        <h2 th:text="#{home.import.title}">Import configuration</h2>
+        <p class="hint" th:text="#{home.import.hint}">Tap the panel for the app on your device.</p>
 
-        <div th:if="${subscriptionUrl}">
-            <p class="hint" th:text="#{home.subscription.hint}">Import this URL into your VPN client.</p>
+        <div class="import-panels">
+
+            <a class="import-panel" th:if="${isMobile or isAdmin}" th:href="${happLink}">
+                <div class="import-panel-title">Happ</div>
+                <div class="import-panel-desc" th:text="#{home.import.happ.desc}">
+                    iOS · Android
+                </div>
+                <div class="import-panel-arrow">→</div>
+            </a>
+
+            <a class="import-panel" th:if="${isMobile or isAdmin}" th:href="${v2rayNgLink}">
+                <div class="import-panel-title">v2rayNG</div>
+                <div class="import-panel-desc" th:text="#{home.import.v2rayng.desc}">
+                    Android
+                </div>
+                <div class="import-panel-arrow">→</div>
+            </a>
+
+            <a class="import-panel" th:if="${!isMobile or isAdmin}"
+               th:href="@{'/sub/' + ${subscriptionToken} + '/setup.bat'}">
+                <div class="import-panel-title">v2rayN</div>
+                <div class="import-panel-desc" th:text="#{home.import.v2rayn.desc}">
+                    Windows · автонастройка .bat
+                </div>
+                <div class="import-panel-arrow">→</div>
+            </a>
+
+            <a class="import-panel" th:if="${!isMobile or isAdmin}" th:href="${streisandLink}">
+                <div class="import-panel-title">Streisand</div>
+                <div class="import-panel-desc" th:text="#{home.import.streisand.desc}">
+                    iOS · macOS
+                </div>
+                <div class="import-panel-arrow">→</div>
+            </a>
+
+            <a class="import-panel" th:if="${!isMobile or isAdmin}" th:href="${karingLink}">
+                <div class="import-panel-title">Karing</div>
+                <div class="import-panel-desc" th:text="#{home.import.karing.desc}">
+                    iOS · macOS
+                </div>
+                <div class="import-panel-arrow">→</div>
+            </a>
+
+            <a class="import-panel" th:if="${!isMobile or isAdmin}" th:href="${shadowrocketLink}">
+                <div class="import-panel-title">Shadowrocket</div>
+                <div class="import-panel-desc" th:text="#{home.import.shadowrocket.desc}">
+                    iOS
+                </div>
+                <div class="import-panel-arrow">→</div>
+            </a>
+
+        </div>
+    </section>
+
+    <details class="advanced-block" th:if="${subscriptionUrl}">
+        <summary th:text="#{home.subscription.advanced}">Manual setup</summary>
+        <div class="advanced-block-body">
+            <p class="hint" th:text="#{home.subscription.advancedHint}">
+                Copy the URL and paste it into your VPN client manually.
+            </p>
             <div class="copy-box">
                 <input type="text" readonly th:value="${subscriptionUrl}" id="sub-url">
                 <button type="button" class="copy-btn" data-copy-target="sub-url"
@@ -22,32 +81,12 @@
             <p th:if="${!subscriptionEnabled}" class="field-error"
                th:text="#{home.subscription.disabled}">Subscription is currently disabled</p>
         </div>
+    </details>
 
-        <p th:unless="${subscriptionUrl}" class="muted"
-           th:text="#{home.subscription.empty}">No subscription available yet.</p>
-    </section>
-    <section class="card">
-        <div class="toolbar" style="margin-top: 12px;">
-            <a class="button" th:href="@{'/sub/' + ${subscriptionToken} + '/setup.bat'}"
-               th:text="#{home.setup.v2rayn}">Set up v2rayN</a>
-        </div>
-        <p class="hint" th:text="#{home.setup.v2rayn.hint}">
-            Downloads a .bat that configures v2rayN: adds the subscription, enables fragmentation, applies routing.
-        </p>
-    </section>
-    <section class="card" th:if="${subscriptionUrl}">
-        <h2 th:text="#{home.import.title}">Импорт конфигурации</h2>
-        <p class="hint" th:text="#{home.import.hint}">
-            Нажмите нужную кнопку на устройстве, где установлено приложение.
-        </p>
-        <div class="import-buttons">
-            <a class="button" th:attr="href=${happLink}">Happ (iOS/Android)</a>
-            <a class="button" th:attr="href=${v2rayNgLink}">v2rayNG (Android)</a>
-            <a class="button" th:attr="href=${streisandLink}">Streisand (iOS)</a>
-            <a class="button" th:attr="href=${shadowrocketLink}">Shadowrocket (iOS)</a>
-            <a class="button" th:attr="href=${karingLink}">Karing (iOS)</a>
-            <a class="button" th:href="@{'/sub/' + ${subscriptionToken} + '/setup.bat'}">v2rayN (Windows)</a>
-        </div>
+    <section class="card" sec:authorize="hasRole('ADMIN')">
+        <h2 th:text="#{home.admin.title}">Admin tools</h2>
+        <p th:text="#{home.admin.text}">Text</p>
+        <a class="button" th:href="@{/admin}" th:text="#{home.admin.button}">Open</a>
     </section>
 
     <script>
@@ -62,12 +101,6 @@
             });
         });
     </script>
-
-    <section class="card" sec:authorize="hasRole('ADMIN')">
-        <h2 th:text="#{home.admin.title}">Admin tools</h2>
-        <p th:text="#{home.admin.text}">Text</p>
-        <a class="button" th:href="@{/admin}" th:text="#{home.admin.button}">Open</a>
-    </section>
 </main>
 
 </body>

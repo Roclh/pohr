@@ -4,6 +4,7 @@
 <body>
 
 <header th:replace="~{fragments/layout :: header}"></header>
+<nav th:replace="~{fragments/layout :: crumbs('admin.xray.configs.title', 'admin.xray.title', '/admin/xray')}"></nav>
 
 <main class="container">
     <h1 th:text="#{admin.xray.configs.title}">Xray configurations</h1>
@@ -15,7 +16,6 @@
 
     <div class="toolbar">
         <a class="button" th:href="@{/admin/xray/configs/new}" th:text="#{admin.xray.configs.new}">New</a>
-        <a class="link" th:href="@{/admin/xray}" th:text="#{common.back}">Back</a>
     </div>
 
     <table class="table" th:if="${!#lists.isEmpty(configs)}">
@@ -30,15 +30,13 @@
         </thead>
         <tbody>
         <tr th:each="cfg : ${configs}">
-            <td>
-                <code th:text="${cfg.name}">default</code>
+            <td data-label="Name"><code th:text="${cfg.name}">default</code></td>
+            <td data-label="Description" th:text="${cfg.description}">—</td>
+            <td data-label="Active">
+        <span class="badge" th:classappend="${cfg.active} ? 'enabled' : 'disabled'"
+              th:text="${cfg.active} ? #{common.yes} : #{common.no}">yes</span>
             </td>
-            <td th:text="${cfg.description}">—</td>
-            <td>
-                <span class="badge" th:classappend="${cfg.active} ? 'enabled' : 'disabled'"
-                      th:text="${cfg.active} ? #{common.yes} : #{common.no}">yes</span>
-            </td>
-            <td th:text="${cfg.updatedAt}">2026-01-01</td>
+            <td data-label="Updated" th:text="${cfg.updatedAt}">2026-01-01</td>
             <td class="actions">
                 <a class="link" th:href="@{/admin/xray/configs/{id}/edit(id=${cfg.id})}"
                    th:text="#{xray.config.list.edit}">Edit</a>
@@ -59,7 +57,8 @@
                             th:text="#{xray.config.list.delete}">Delete</button>
                 </form>
                 <form th:action="@{/admin/xray/configs/{id}/clone(id=${cfg.id})}" method="post" class="inline">
-                    <button type="submit" class="link-button on-light" th:text="#{xray.config.list.clone}">Duplicate</button>
+                    <button type="submit" class="link-button on-light"
+                            th:text="#{xray.config.list.clone}">Duplicate</button>
                 </form>
             </td>
         </tr>

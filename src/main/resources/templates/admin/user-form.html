@@ -4,6 +4,7 @@
 <body>
 
 <header th:replace="~{fragments/layout :: header}"></header>
+<nav th:replace="~{fragments/layout :: crumbs('user.form.title', 'admin.users.title', '/admin/users')}"></nav>
 
 <main class="container narrow">
     <h1 th:text="${mode == 'create'} ? #{user.form.title.create} : #{user.form.title.edit}">User</h1>

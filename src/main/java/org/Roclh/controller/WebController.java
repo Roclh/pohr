@@ -4,6 +4,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.Roclh.model.Subscription;
 import org.Roclh.model.User;
+import org.Roclh.service.DeviceDetector;
 import org.Roclh.service.PublicUrlResolver;
 import org.Roclh.service.SubscriptionService;
 import org.Roclh.service.UserService;
@@ -11,6 +12,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
 import java.net.URLEncoder;
@@ -36,8 +38,17 @@ public class WebController {
     }
 
     @GetMapping("/home")
-    public String home(Authentication authentication, Model model, HttpServletRequest request) {
+    public String home(Authentication authentication,
+                       Model model,
+                       HttpServletRequest request,
+                       @RequestHeader(value = "User-Agent", required = false) String userAgent) {
+
         model.addAttribute("username", authentication.getName());
+
+        boolean isAdmin = authentication.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
+        model.addAttribute("isAdmin", isAdmin);
+        model.addAttribute("isMobile", DeviceDetector.isMobile(userAgent));
 
         User user = userService.findByUsername(authentication.getName()).orElse(null);
         if (user != null) {
@@ -51,12 +62,17 @@ public class WebController {
 
             String encoded = URLEncoder.encode(subUrl, StandardCharsets.UTF_8)
                     .replace("+", "%20");
-            model.addAttribute("happLink",         "happ://add/" + encoded);
+
+            model.addAttribute("happLink", "happ://add/" + encoded);
+
             String encodedNg = Base64.getUrlEncoder().withoutPadding()
                     .encodeToString(subUrl.getBytes(StandardCharsets.UTF_8));
-            model.addAttribute("v2rayNgLink",      "v2rayng://install-sub?url=" + encodedNg + "&name=Pohr");
-            model.addAttribute("streisandLink",    "streisand://import/" + encoded);
-            model.addAttribute("karingLink",       "karing://install-config?url=" + encoded);
+            model.addAttribute("v2rayNgLink",
+                    "v2rayng://install-sub?url=" + encodedNg + "&name=Pohr");
+
+            model.addAttribute("streisandLink", "streisand://import/" + encoded);
+            model.addAttribute("karingLink", "karing://install-config?url=" + encoded);
+
             String b64 = Base64.getUrlEncoder().withoutPadding()
                     .encodeToString(subUrl.getBytes(StandardCharsets.UTF_8));
             model.addAttribute("shadowrocketLink", "sub://" + b64);

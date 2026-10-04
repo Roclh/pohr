@@ -1,6 +1,11 @@
 package org.Roclh.controller.admin;
 
 import lombok.RequiredArgsConstructor;
+import org.Roclh.model.Subscription;
+import org.Roclh.model.User;
+import org.Roclh.model.dto.XrayClientOption;
+import org.Roclh.service.SubscriptionService;
+import org.Roclh.service.UserService;
 import org.Roclh.service.xray.XrayInstaller;
 import org.Roclh.service.xray.XrayProcessManager;
 import org.Roclh.service.xray.XrayVersionResolver;
@@ -8,6 +13,9 @@ import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+
+import java.util.ArrayList;
+import java.util.List;
 
 @Controller
 @RequestMapping("/admin/xray")
@@ -17,6 +25,8 @@ public class AdminXrayController {
     private final XrayProcessManager processManager;
     private final XrayVersionResolver versionResolver;
     private final XrayInstaller installer;
+    private final SubscriptionService subscriptionService;   // NEW
+    private final UserService userService;                   // NEW
 
     @GetMapping
     public String page(Model model) {
@@ -26,6 +36,15 @@ public class AdminXrayController {
         model.addAttribute("version", installer.installedVersion());
         model.addAttribute("installed", installer.isInstalled());
         model.addAttribute("recentLogs", processManager.recentLogs(50));
+        List<XrayClientOption> clients = new ArrayList<>();
+        for (Subscription s : subscriptionService.findAllEnabled()) {
+            if (s.getXrayUuid() == null || s.getXrayUuid().isBlank()) continue;
+            String username = userService.findById(s.getUserId())
+                    .map(User::getUsername)
+                    .orElse("?");
+            clients.add(new XrayClientOption(s.getXrayUuid(), username));
+        }
+        model.addAttribute("clients", clients);
         return "admin/xray";
     }
 

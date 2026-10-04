@@ -4,6 +4,7 @@
 <body>
 
 <header th:replace="~{fragments/layout :: header}"></header>
+<nav th:replace="~{fragments/layout :: crumbs('admin.scripts.title', null, null)}"></nav>
 
 <main class="container">
     <h1 th:text="#{admin.scripts.title}">Client scripts</h1>
@@ -17,7 +18,6 @@
 
     <div class="toolbar">
         <a class="button" th:href="@{/admin/client-scripts/new}" th:text="#{admin.scripts.new}">New script</a>
-        <a class="link" th:href="@{/admin}" th:text="#{common.back}">Back</a>
     </div>
 
     <table class="table" th:if="${!#lists.isEmpty(scripts)}">
@@ -32,10 +32,11 @@
         </thead>
         <tbody>
         <tr th:each="s : ${scripts}">
-            <td><code th:text="${s.name()}">v2rayn-setup.bat</code></td>
-            <td th:text="${s.size()}">1024</td>
-            <td th:text="${#strings.substringBefore(s.modifiedAt().toString(), '.')}">2026-01-01T00:00:00</td>
-            <td>
+            <td data-label="Name"><code th:text="${s.name()}">v2rayn-setup.bat</code></td>
+            <td data-label="Size" th:text="${s.size()}">1024</td>
+            <td data-label="Modified"
+                th:text="${#strings.substringBefore(s.modifiedAt().toString(), '.')}">2026-01-01T00:00:00</td>
+            <td data-label="Bundled">
                 <span th:if="${s.bundled() && s.matchesBundled()}" class="badge enabled">bundled</span>
                 <span th:if="${s.bundled() && !s.matchesBundled()}" class="badge disabled">modified</span>
                 <span th:if="${!s.bundled()}" class="badge user">custom</span>

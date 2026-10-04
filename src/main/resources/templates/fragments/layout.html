@@ -3,7 +3,7 @@
       xmlns:sec="http://www.thymeleaf.org/extras/spring-security">
 <head th:fragment="head(title)">
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title th:text="${title}">Pohr</title>
     <link rel="stylesheet" th:href="@{/css/style.css}">
 </head>
@@ -27,6 +27,16 @@
         </form>
     </nav>
 </header>
+
+<nav th:fragment="crumbs(currentKey, parentKey, parentHref)" class="breadcrumbs">
+    <a th:href="@{/admin}" th:text="#{nav.admin}">Admin</a>
+    <span class="crumb-sep">›</span>
+    <th:block th:if="${parentKey != null and parentKey != ''}">
+        <a th:href="${parentHref}" th:text="#{${parentKey}}">Parent</a>
+        <span class="crumb-sep">›</span>
+    </th:block>
+    <span class="crumb-current" th:text="#{${currentKey}}">Page</span>
+</nav>
 
 </body>
 </html>

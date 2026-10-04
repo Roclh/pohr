@@ -3,6 +3,7 @@
 <head th:replace="~{fragments/layout :: head(#{admin.invites.title})}"></head>
 <body>
 <header th:replace="~{fragments/layout :: header}"></header>
+<nav th:replace="~{fragments/layout :: crumbs('admin.invites.title', null, null)}"></nav>
 
 <main class="container">
     <h1 th:text="#{admin.invites.title}">Invites</h1>
@@ -14,7 +15,6 @@
 
     <div class="toolbar">
         <a class="button" th:href="@{/admin/invites/new}" th:text="#{admin.invites.new}">New invite</a>
-        <a class="link" th:href="@{/admin}" th:text="#{common.back}">Back</a>
     </div>
 
     <table class="table" th:if="${!#lists.isEmpty(invites)}">
@@ -28,9 +28,10 @@
         </thead>
         <tbody>
         <tr th:each="i : ${invites}">
-            <td><span class="badge user" th:text="${i.role}">USER</span></td>
-            <td th:text="${#strings.substringBefore(i.expiresAt.toString(), '.')}">2026-01-01T00:00:00</td>
-            <td>
+            <td data-label="Role"><span class="badge user" th:text="${i.role}">USER</span></td>
+            <td data-label="Expires"
+                th:text="${#strings.substringBefore(i.expiresAt.toString(), '.')}">2026-01-01T00:00:00</td>
+            <td data-label="Status">
                 <span th:if="${i.usedAt != null}" class="badge disabled" th:text="#{invite.list.used}">used</span>
                 <span th:if="${i.usedAt == null and i.expiresAt.isBefore(T(java.time.Instant).now())}"
                       class="badge disabled" th:text="#{invite.list.expired}">expired</span>

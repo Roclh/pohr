@@ -2,6 +2,7 @@
 <html xmlns:th="http://www.thymeleaf.org">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
     <title th:text="#{app.title} + ' — ' + #{login.subtitle}">Login</title>
     <link rel="stylesheet" th:href="@{/css/style.css}">
 </head>
@@ -17,11 +18,16 @@
     <form th:action="@{/login}" method="post">
         <label>
             <span th:text="#{login.username}">Username</span>
-            <input type="text" name="username" autofocus required>
+            <input type="text" name="username" autofocus required
+                   autocomplete="username"
+                   autocapitalize="off"
+                   autocorrect="off"
+                   spellcheck="false">
         </label>
         <label>
             <span th:text="#{login.password}">Password</span>
-            <input type="password" name="password" required>
+            <input type="password" name="password" required
+                   autocomplete="current-password">
         </label>
         <button type="submit" th:text="#{login.submit}">Log in</button>
     </form>

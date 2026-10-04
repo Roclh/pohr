@@ -4,6 +4,7 @@
 <body>
 
 <header th:replace="~{fragments/layout :: header}"></header>
+<nav th:replace="~{fragments/layout :: crumbs('admin.xray.title', null, null)}"></nav>
 
 <main class="container">
     <h1 th:text="#{admin.xray.title}">Xray</h1>
@@ -13,7 +14,6 @@
 
     <div class="toolbar">
         <a class="button" th:href="@{/admin/xray/configs}" th:text="#{admin.xray.configs.manage}">Configs</a>
-        <a class="link" th:href="@{/admin}" th:text="#{common.back}">Back</a>
     </div>
 
     <section class="card">
@@ -64,29 +64,107 @@
 
     <section class="card">
         <h2 th:text="#{admin.xray.logs}">Recent logs</h2>
+
+        <div class="toolbar" style="margin-bottom: 8px;">
+            <label class="log-filter">
+                <span th:text="#{admin.xray.logs.filter}">Filter by client:</span>
+                <select id="log-client-filter">
+                    <option value="" th:text="#{admin.xray.logs.filter.all}">All clients</option>
+                    <option th:each="c : ${clients}"
+                            th:value="${c.uuid}"
+                            th:text="${c.username}">user</option>
+                </select>
+            </label>
+            <button type="button" id="log-clear" class="link-button on-light"
+                    th:text="#{admin.xray.logs.clear}">Clear</button>
+        </div>
+
+        <p class="hint" th:text="#{admin.xray.logs.loglevelHint}">
+            Client emails appear only when loglevel is info or debug.
+        </p>
+
         <pre class="logs" id="logs"
              th:data-initial="${#strings.listJoin(recentLogs, '\n')}"></pre>
-        <p th:if="${#lists.isEmpty(recentLogs)}" class="muted" th:text="#{admin.xray.logs.empty}">No logs yet</p>
+        <p th:if="${#lists.isEmpty(recentLogs)}" class="muted"
+           th:text="#{admin.xray.logs.empty}">No logs yet</p>
     </section>
 
     <script>
         (function () {
             const pre = document.getElementById('logs');
-            const initial = pre.dataset.initial || '';
-            if (initial) pre.textContent = initial + '\n';
+            const filterSelect = document.getElementById('log-client-filter');
+            const clearBtn = document.getElementById('log-clear');
+
+            // uuid → username
+            const emailToUser = new Map();
+            filterSelect.querySelectorAll('option[value]').forEach(opt => {
+                if (opt.value) emailToUser.set(opt.value, opt.textContent);
+            });
+
+            // sessionId → uuid этого фильтра (чтобы тянуть всю сессию)
+            const sessionOwner = new Map();
+
+            function extractSessionId(line) {
+                const m = line.match(/\[(\d+)\]/);
+                return m ? m[1] : null;
+            }
+
+            function matches(line) {
+                const filter = filterSelect.value;
+                if (!filter) return true;
+                const sid = extractSessionId(line);
+                if (line.includes(filter)) {
+                    if (sid) sessionOwner.set(sid, filter);
+                    return true;
+                }
+                return sid != null && sessionOwner.get(sid) === filter;
+            }
+
+            function enrich(line) {
+                let out = line;
+                for (const [uuid, name] of emailToUser) {
+                    if (out.includes(uuid)) {
+                        out = out.split(uuid).join(uuid + " (" + name + ")");
+                    }
+                }
+                return out;
+            }
+
+            function reapply() {
+                sessionOwner.clear();
+                const out = [];
+                for (const line of buffer) if (matches(line)) out.push(enrich(line));
+                pre.textContent = out.length ? out.join('\n') + '\n' : '';
+                pre.scrollTop = pre.scrollHeight;
+            }
+
+            let buffer = (pre.dataset.initial || '').split('\n').filter(Boolean);
+
+            filterSelect.addEventListener('change', reapply);
+            clearBtn.addEventListener('click', () => {
+                buffer = [];
+                sessionOwner.clear();
+                pre.textContent = '';
+            });
+
+            // первичная отрисовка
+            reapply();
 
             const proto = location.protocol === 'https:' ? 'wss://' : 'ws://';
             const ws = new WebSocket(proto + location.host + '/ws/xray-logs');
 
             ws.onmessage = (e) => {
-                pre.textContent += e.data + '\n';
-                const lines = pre.textContent.split('\n');
-                if (lines.length > 1000) {
-                    pre.textContent = lines.slice(-1000).join('\n');
+                buffer.push(e.data);
+                if (buffer.length > 5000) buffer = buffer.slice(-2000);
+                if (matches(e.data)) {
+                    pre.textContent += enrich(e.data) + '\n';
+                    const lines = pre.textContent.split('\n');
+                    if (lines.length > 3000) {
+                        pre.textContent = lines.slice(-1500).join('\n');
+                    }
+                    pre.scrollTop = pre.scrollHeight;
                 }
-                pre.scrollTop = pre.scrollHeight;
             };
-            ws.onclose = () => console.log('WebSocket closed');
             ws.onerror = (e) => console.error('WebSocket error', e);
         })();
     </script>

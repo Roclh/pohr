@@ -8,47 +8,81 @@
 <main class="container">
     <h1 th:text="#{admin.title}">Admin panel</h1>
 
-    <section class="card">
-        <h2 th:text="#{admin.xray.title}">Xray process</h2>
-        <p th:text="#{admin.xray.text}">Manage Xray process, logs and updates.</p>
-        <a class="button" th:href="@{/admin/xray}" th:text="#{admin.xray.manage}">Manage Xray</a>
-    </section>
+    <div class="admin-grid">
 
-    <section class="card">
-        <h2 th:text="#{admin.users.title}">Users</h2>
-        <p th:text="#{admin.users.text}">Text</p>
-        <a class="button" th:href="@{/admin/users}" th:text="#{admin.users.manage}">Manage users</a>
-    </section>
+        <a class="admin-card" th:href="@{/admin/xray}">
+            <h3 th:text="#{admin.xray.title}">Xray process</h3>
+            <p class="admin-card-desc" th:text="#{admin.xray.text}">
+                Manage Xray process, logs and updates.
+            </p>
+            <span class="admin-card-arrow">↗</span>
+        </a>
 
-    <section class="card">
-        <h2 th:text="#{admin.config.title}">Xray configuration</h2>
-        <p th:text="#{admin.config.text}">Manage named configs, switch the active one.</p>
-        <a class="button" th:href="@{/admin/xray/configs}" th:text="#{admin.config.manage}">Manage configs</a>
-    </section>
+        <a class="admin-card" th:href="@{/admin/xray/configs}">
+            <h3 th:text="#{admin.xray.configs.title}">Xray configurations</h3>
+            <p class="admin-card-desc" th:text="#{admin.xray.configs.text}">
+                Named configs, switch active, edit JSON.
+            </p>
+            <span class="admin-card-arrow">↗</span>
+        </a>
 
-    <section class="card">
-        <h2 th:text="#{admin.subscriptions.title}">Subscriptions</h2>
-        <p th:text="#{admin.subscriptions.text}">Manage client subscriptions.</p>
-        <a class="button" th:href="@{/admin/subscriptions}" th:text="#{admin.subscriptions.manage}">Manage</a>
-    </section>
+        <a class="admin-card" th:href="@{/admin/users}">
+            <h3 th:text="#{admin.users.title}">Users</h3>
+            <p class="admin-card-desc" th:text="#{admin.users.text}">
+                User management.
+            </p>
+            <span class="admin-card-arrow">↗</span>
+        </a>
 
-    <section class="card">
-        <h2 th:text="#{admin.scripts.title}">Client scripts</h2>
-        <p th:text="#{admin.scripts.text}">Scripts are stored on disk (SCRIPTS_HOME volume). Bundled copies are seeded on first start; edits survive container updates.</p>
-        <a class="button" th:href="@{/admin/client-scripts}" th:text="#{admin.scripts.manage}">Manage scripts</a>
-    </section>
+        <a class="admin-card" th:href="@{/admin/subscriptions}">
+            <h3 th:text="#{admin.subscriptions.title}">Subscriptions</h3>
+            <p class="admin-card-desc" th:text="#{admin.subscriptions.text}">
+                Client subscriptions.
+            </p>
+            <span class="admin-card-arrow">↗</span>
+        </a>
 
-    <section class="card">
-        <h2 th:text="#{admin.invites.title}">Invites</h2>
-        <p th:text="#{admin.invites.text}">Invite links create an account on first open.</p>
-        <a class="button" th:href="@{/admin/invites}" th:text="#{admin.invites.manage}">Manage invites</a>
-    </section>
+        <a class="admin-card" th:href="@{/admin/invites}">
+            <h3 th:text="#{admin.invites.title}">Invites</h3>
+            <p class="admin-card-desc" th:text="#{admin.invites.text}">
+                Invite links create an account when opened.
+            </p>
+            <span class="admin-card-arrow">↗</span>
+        </a>
 
-    <section class="card">
-        <h2 th:text="#{admin.nodes.title}">EU nodes</h2>
-        <p th:text="#{admin.nodes.text}">Register EU exit nodes.</p>
-        <a class="button" th:href="@{/admin/nodes}" th:text="#{admin.nodes.manage}">Manage nodes</a>
-    </section>
+        <a class="admin-card" th:href="@{/admin/nodes}">
+            <h3 th:text="#{admin.nodes.title}">EU nodes</h3>
+            <p class="admin-card-desc" th:text="#{admin.nodes.text}">
+                Register and manage EU exit nodes.
+            </p>
+            <span class="admin-card-arrow">↗</span>
+        </a>
+
+        <a class="admin-card" th:href="@{/admin/client-scripts}">
+            <h3 th:text="#{admin.scripts.title}">Client scripts</h3>
+            <p class="admin-card-desc" th:text="#{admin.scripts.text}">
+                Installer scripts (.bat/.ps1/.sh) stored on volume.
+            </p>
+            <span class="admin-card-arrow">↗</span>
+        </a>
+
+        <a class="admin-card" th:href="@{/admin/client-configs}">
+            <h3 th:text="#{admin.clientConfigs.title}">Client configs</h3>
+            <p class="admin-card-desc" th:text="#{admin.clientConfigs.text}">
+                HTTP headers Pohr sends with the subscription.
+            </p>
+            <span class="admin-card-arrow">↗</span>
+        </a>
+
+        <a class="admin-card" th:href="@{/admin/monitoring}">
+            <h3 th:text="#{admin.monitoring.title}">Monitoring</h3>
+            <p class="admin-card-desc" th:text="#{admin.monitoring.text}">
+                CPU, RAM, traffic, EU node status.
+            </p>
+            <span class="admin-card-arrow">↗</span>
+        </a>
+
+    </div>
 </main>
 
 </body>

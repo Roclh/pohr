@@ -11,3 +11,7 @@ databaseChangeLog:
       file: db/changelog/005-eu-nodes/eu_nodes.sql
   - include:
       file: db/changelog/006-invite-tokens/invite_tokens.sql
+  - include:
+      file: db/changelog/007-client-configs/client_configs.sql
+  - include:
+      file: db/changelog/008-metrics/metrics.sql

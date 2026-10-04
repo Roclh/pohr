@@ -15,5 +15,9 @@ xray:
     auto: ${XRAY_AUTO_START:true}
 
 pohr:
+  metrics:
+    interval-ms: ${METRICS_INTERVAL_MS:60000}
+    initial-delay-ms: 15000
+    retention-days: ${METRICS_RETENTION_DAYS:7}
   scripts:
     home: ${SCRIPTS_HOME:/app/scripts}

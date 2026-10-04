@@ -15,3 +15,5 @@ databaseChangeLog:
       file: db/changelog/007-client-configs/client_configs.sql
   - include:
       file: db/changelog/008-metrics/metrics.sql
+  - include:
+      file: db/changelog/009-telegram-proxy/telegram_proxy.sql

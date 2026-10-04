@@ -4,7 +4,6 @@ import lombok.extern.slf4j.Slf4j;
 import org.Roclh.model.EuNode;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
@@ -64,10 +63,36 @@ public class EuConfigService {
                 defaultDest, sni, node.getRealityShortId());
     }
 
+    /** SOCKS-inbound для healthcheck туннеля (RU-side проверка EU). */
+    public ObjectNode buildHealthcheckInbound() {
+        ObjectNode ib = objectMapper.createObjectNode();
+        ib.put("listen", "127.0.0.1");
+        ib.put("port", healthcheckSocksPort);
+        ib.put("protocol", "socks");
+        ib.put("tag", "healthcheck-socks");
+        ObjectNode settings = ib.putObject("settings");
+        settings.put("auth", "noauth");
+        settings.put("udp", false);
+        return ib;
+    }
+
+    /** SOCKS-inbound, через который telemt отправляет трафик в eu-outbound. */
+    public ObjectNode buildTelemtSocksInbound(int port) {
+        ObjectNode ib = objectMapper.createObjectNode();
+        ib.put("listen", "127.0.0.1");
+        ib.put("port", port);
+        ib.put("protocol", "socks");
+        ib.put("tag", "telemt-socks");
+        ObjectNode settings = ib.putObject("settings");
+        settings.put("auth", "noauth");
+        settings.put("udp", true);
+        return ib;
+    }
+
     /** SHA-256 от компактной JSON-сериализации. */
     public String computeHash(String json) {
         try {
-            JsonNode parsed = objectMapper.readTree(json);
+            var parsed = objectMapper.readTree(json);
             String normalized = objectMapper.writeValueAsString(parsed);
             MessageDigest md = MessageDigest.getInstance("SHA-256");
             byte[] digest = md.digest(normalized.getBytes(StandardCharsets.UTF_8));
@@ -77,7 +102,7 @@ public class EuConfigService {
         }
     }
 
-    /** VLESS outbound VLESS → EU-нода. */
+    /** VLESS outbound RU → EU. */
     public ObjectNode buildEuOutbound(EuNode node) {
         ObjectNode ob = objectMapper.createObjectNode();
         ob.put("protocol", "vless");
@@ -103,20 +128,7 @@ public class EuConfigService {
         return ob;
     }
 
-    /** SOCKS inbound для health-check'а (RU-side проверка туннеля). */
-    public ObjectNode buildHealthcheckInbound() {
-        ObjectNode ib = objectMapper.createObjectNode();
-        ib.put("listen", "127.0.0.1");
-        ib.put("port", healthcheckSocksPort);
-        ib.put("protocol", "socks");
-        ib.put("tag", "healthcheck-socks");
-        ObjectNode settings = ib.putObject("settings");
-        settings.put("auth", "noauth");
-        settings.put("udp", false);
-        return ib;
-    }
-
-    /** Правила роутинга: healthcheck → eu, geoip:ru/private → direct, всё остальное → eu. */
+    /** Правила роутинга: healthcheck/telemt → eu, geoip:ru/private → direct, остальное → eu. */
     public ObjectNode buildRouting() {
         ObjectNode routing = objectMapper.createObjectNode();
         routing.put("domainStrategy", "IPIfNonMatch");
@@ -126,6 +138,11 @@ public class EuConfigService {
         r1.put("type", "field");
         r1.put("outboundTag", "eu");
         r1.putArray("inboundTag").add("healthcheck-socks");
+
+        ObjectNode rTelemt = rules.addObject();
+        rTelemt.put("type", "field");
+        rTelemt.put("outboundTag", "eu");
+        rTelemt.putArray("inboundTag").add("telemt-socks");
 
         ObjectNode r2 = rules.addObject();
         r2.put("type", "field");

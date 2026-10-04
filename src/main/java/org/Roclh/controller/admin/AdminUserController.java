@@ -2,9 +2,12 @@ package org.Roclh.controller.admin;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.Roclh.model.TelegramProxyUser;
 import org.Roclh.model.User;
 import org.Roclh.model.dto.UserDto;
+import org.Roclh.repository.telegram.TelegramProxyUserRepository;
 import org.Roclh.service.UserService;
+import org.Roclh.service.telegram.TelegramProxyService;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -13,7 +16,10 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Controller
 @RequestMapping("/admin/users")
@@ -21,12 +27,52 @@ import java.util.UUID;
 public class AdminUserController {
 
     private final UserService userService;
+    private final TelegramProxyService telegramProxyService;
+    private final TelegramProxyUserRepository telegramProxyUserRepository;
 
     @GetMapping
     public String list(Model model) {
         List<User> users = userService.findAll();
+        Map<UUID, TelegramProxyUser> tgByUser = telegramProxyUserRepository.findAll().stream()
+                .collect(Collectors.toMap(TelegramProxyUser::getUserId, Function.identity()));
         model.addAttribute("users", users);
+        model.addAttribute("tgByUser", tgByUser);
         return "admin/users";
+    }
+
+    @GetMapping("/{id}/tg")
+    public String tgDetail(@PathVariable UUID id, Model model, RedirectAttributes flash) {
+        User u = userService.findById(id).orElse(null);
+        TelegramProxyUser tg = telegramProxyUserRepository.findById(id).orElse(null);
+        if (u == null || tg == null) {
+            flash.addFlashAttribute("errorMessage", "error.user.notfound");
+            return "redirect:/admin/users";
+        }
+        model.addAttribute("user", u);
+        model.addAttribute("tg", telegramProxyService.toUserDto(tg));
+        return "admin/user-tg";
+    }
+
+    @PostMapping("/{id}/tg/toggle")
+    public String tgToggle(@PathVariable UUID id, RedirectAttributes flash) {
+        try {
+            telegramProxyService.toggle(id);
+            flash.addFlashAttribute("successMessage", "flash.telegram.userToggled");
+        } catch (Exception e) {
+            flash.addFlashAttribute("errorMessage", e.getMessage());
+        }
+        return "redirect:/admin/users/" + id + "/tg";
+    }
+
+    @PostMapping("/{id}/tg/regenerate")
+    public String tgRegenerate(@PathVariable UUID id, RedirectAttributes flash) {
+        try {
+            telegramProxyService.regenerateSecret(id);
+            flash.addFlashAttribute("successMessage", "flash.telegram.secretRegenerated");
+        } catch (Exception e) {
+            flash.addFlashAttribute("errorMessage", e.getMessage());
+        }
+        return "redirect:/admin/users/" + id + "/tg";
     }
 
     @GetMapping("/new")

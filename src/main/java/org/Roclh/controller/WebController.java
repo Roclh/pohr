@@ -4,10 +4,13 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.Roclh.model.Subscription;
 import org.Roclh.model.User;
+import org.Roclh.model.dto.telegram.TelegramProxyUserDto;
+import org.Roclh.repository.telegram.TelegramProxyUserRepository;
 import org.Roclh.service.DeviceDetector;
 import org.Roclh.service.PublicUrlResolver;
 import org.Roclh.service.SubscriptionService;
 import org.Roclh.service.UserService;
+import org.Roclh.service.telegram.TelegramProxyService;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -26,6 +29,8 @@ public class WebController {
     private final UserService userService;
     private final SubscriptionService subscriptionService;
     private final PublicUrlResolver publicUrlResolver;
+    private final TelegramProxyService telegramProxyService;
+    private final TelegramProxyUserRepository telegramProxyUserRepository;
 
     @GetMapping("/")
     public String root() {
@@ -76,6 +81,14 @@ public class WebController {
             String b64 = Base64.getUrlEncoder().withoutPadding()
                     .encodeToString(subUrl.getBytes(StandardCharsets.UTF_8));
             model.addAttribute("shadowrocketLink", "sub://" + b64);
+
+            telegramProxyUserRepository.findById(user.getId())
+                    .filter(tg -> tg.isEnabled() && tg.getSecret() != null)
+                    .ifPresent(tg -> {
+                        TelegramProxyUserDto dto = telegramProxyService.toUserDto(tg);
+                        model.addAttribute("tgProxyUrl", dto.proxyUrl());
+                        model.addAttribute("tgWebProxyUrl", dto.webProxyUrl());
+                    });
         }
         return "home";
     }

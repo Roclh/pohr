@@ -3,6 +3,9 @@ package org.Roclh.service;
 import lombok.RequiredArgsConstructor;
 import org.Roclh.model.User;
 import org.Roclh.repository.UserRepository;
+import org.Roclh.service.event.UserCreatedEvent;
+import org.Roclh.service.event.UserRenamedEvent;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,6 +23,7 @@ public class UserService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final ApplicationEventPublisher events;
 
     public List<User> findAll() {
         return userRepository.findAll();
@@ -43,20 +47,27 @@ public class UserService {
                 .role(role)
                 .enabled(enabled)
                 .build();
-        return userRepository.save(user);
+        User saved = userRepository.save(user);
+        events.publishEvent(new UserCreatedEvent(saved.getId(), saved.getUsername()));
+        return saved;
     }
 
     @Transactional
     public User update(UUID id, String username, String rawPasswordOrNull, String role, boolean enabled) {
         User user = userRepository.findById(id)
                 .orElseThrow(() -> new IllegalArgumentException("User not found: " + id));
+        String previousUsername = user.getUsername();
         user.setUsername(username);
         user.setRole(role);
         user.setEnabled(enabled);
         if (rawPasswordOrNull != null && !rawPasswordOrNull.isBlank()) {
             user.setPasswordHash(passwordEncoder.encode(rawPasswordOrNull));
         }
-        return userRepository.save(user);
+        user = userRepository.save(user);
+        if (!previousUsername.equals(username)) {
+            events.publishEvent(new UserRenamedEvent(user.getId(), username));
+        }
+        return user;
     }
 
     @Transactional

@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head(#{admin.telegram.title})}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<nav th:replace="~{fragments/layout :: crumbs('admin.telegram.title', 'admin.users.title', '/admin/users')}"></nav>
+
+<main class="container">
+    <h1>
+        <span th:text="#{admin.telegram.title}">Telegram</span> —
+        <code th:text="${user.username}">alice</code>
+    </h1>
+
+    <div th:if="${successMessage}" class="alert success" th:text="#{${successMessage}}"></div>
+    <div th:if="${errorMessage}" class="alert error" th:text="${errorMessage}"></div>
+
+    <section class="card">
+        <h2 th:text="#{admin.telegram.link}">Ссылка для Telegram</h2>
+
+        <div th:if="${tg.proxyUrl() == null}" class="alert info"
+             th:text="#{admin.telegram.secret.notGenerated.hint}">
+            Секрет ещё не сгенерирован. Включите прокси на /admin/telegram, и он появится.
+        </div>
+
+        <div class="copy-box" th:if="${tg.proxyUrl() != null}">
+            <input type="text" readonly th:value="${tg.proxyUrl()}" id="tg-url">
+            <button type="button" class="copy-btn" data-copy-target="tg-url"
+                    th:text="#{home.subscription.copy}">Copy</button>
+        </div>
+
+        <div class="copy-box" th:if="${tg.webProxyUrl() != null}" style="margin-top:8px;">
+            <input type="text" readonly th:value="${tg.webProxyUrl()}" id="tg-web">
+            <button type="button" class="copy-btn" data-copy-target="tg-web"
+                    th:text="#{admin.telegram.webCopy}">WEB</button>
+        </div>
+
+        <p class="muted" style="margin-top: 12px;">
+            <span th:text="#{admin.telegram.userEnabled}">Активен</span>:
+            <span class="badge" th:classappend="${tg.enabled()} ? 'enabled' : 'disabled'"
+                  th:text="${tg.enabled()} ? #{common.yes} : #{common.no}">yes</span>
+        </p>
+    </section>
+
+    <section class="card">
+        <h2 th:text="#{admin.telegram.userActions}">Действия</h2>
+        <div class="form-actions">
+            <form th:action="@{/admin/users/{id}/tg/toggle(id=${user.id})}" method="post" class="inline">
+                <button type="submit"
+                        th:text="${tg.enabled()} ? #{subscription.list.disable} : #{subscription.list.enable}">Toggle</button>
+            </form>
+            <form th:action="@{/admin/users/{id}/tg/regenerate(id=${user.id})}" method="post" class="inline"
+                  onsubmit="return confirm(this.dataset.confirm)"
+                  th:data-confirm="#{admin.telegram.regenerate.confirm}">
+                <button type="submit" class="link-button on-light"
+                        th:text="#{admin.telegram.regenerate}">Regenerate</button>
+            </form>
+        </div>
+    </section>
+
+    <div class="toolbar">
+        <a class="link" th:href="@{/admin/users}" th:text="#{common.back}">Back</a>
+    </div>
+</main>
+
+<script>
+    document.querySelectorAll('[data-copy-target]').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const input = document.getElementById(btn.dataset.copyTarget);
+            navigator.clipboard.writeText(input.value).then(() => {
+                const t = btn.textContent; btn.textContent = '✓';
+                setTimeout(() => btn.textContent = t, 1200);
+            });
+        });
+    });
+</script>
+</body>
+</html>

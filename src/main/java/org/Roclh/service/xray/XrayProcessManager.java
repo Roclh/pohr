@@ -125,7 +125,7 @@ public class XrayProcessManager {
                     String line;
                     while ((line = r.readLine()) != null) {
                         appendLog(line);
-                        log.info("[xray] {}", line);
+                        log.debug("[xray] {}", line);
                     }
                 } catch (IOException e) {
                     log.debug("Xray log stream closed", e);

@@ -23,6 +23,7 @@
             <th th:text="#{user.list.role}">Role</th>
             <th th:text="#{user.list.enabled}">Enabled</th>
             <th th:text="#{user.list.created}">Created</th>
+            <th th:text="#{user.list.tg}">Telegram</th>
             <th class="actions" th:text="#{user.list.actions}">Actions</th>
         </tr>
         </thead>
@@ -38,7 +39,20 @@
               th:text="${user.enabled} ? #{common.yes} : #{common.no}">yes</span>
             </td>
             <td data-label="Created"
-                th:text="${#strings.substringBefore(user.createdAt.toString(), '.')}">2026-01-01T00:00:00</td>
+                th:text="${#strings.substringBefore(user.createdAt.toString(), '.')}">2026-01-01T00:00:00
+            </td>
+            <td data-label="Telegram">
+                <th:block th:with="tg=${tgByUser.get(user.id)}">
+                <span th:if="${tg == null or tg.secret == null}" class="badge user"
+                      th:text="#{user.list.tg.notGenerated}">not generated</span>
+                    <th:block th:if="${tg != null and tg.secret != null}">
+                    <span class="badge" th:classappend="${tg.enabled} ? 'enabled' : 'disabled'"
+                          th:text="${tg.enabled} ? #{common.yes} : #{common.no}">on</span>
+                        <a class="link" th:href="@{/admin/users/{id}/tg(id=${user.id})}"
+                           th:text="#{user.list.tg.open}">Open</a>
+                    </th:block>
+                </th:block>
+            </td>
             <td class="actions">
                 <a class="link" th:href="@{/admin/users/{id}/edit(id=${user.id})}"
                    th:text="#{user.list.edit}">Edit</a>
@@ -47,7 +61,8 @@
                       onsubmit="return confirm(this.dataset.confirm)"
                       th:data-confirm="#{user.list.delete.confirm}">
                     <button type="submit" class="link-button danger"
-                            th:text="#{user.list.delete}">Delete</button>
+                            th:text="#{user.list.delete}">Delete
+                    </button>
                 </form>
             </td>
         </tr>

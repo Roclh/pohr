@@ -5,6 +5,7 @@ services:
     ports:
       - "${POHR_PORT:-8080}:8080"
       - "${POHR_VPN_PORT:-8443}:8443"
+      - "${POHR_TELEMT_PORT:-3128}:3128"
     volumes:
       - pohr-data:/app/data
       - pohr-xray:/app/xray

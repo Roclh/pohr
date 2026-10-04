@@ -122,6 +122,10 @@ public class NativeHints {
             hints.reflection().registerType(
                     org.Roclh.model.dto.MetricsSnapshot.class,
                     MemberCategory.values());
+            hints.reflection().registerType(org.Roclh.model.dto.telegram.TelegramProxyConfigForm.class, MemberCategory.values());
+            hints.reflection().registerType(org.Roclh.model.dto.telegram.TelegramProxyConfigDto.class, MemberCategory.values());
+            hints.reflection().registerType(org.Roclh.model.dto.telegram.TelegramProxyUserForm.class, MemberCategory.values());
+            hints.reflection().registerType(org.Roclh.model.dto.telegram.TelegramProxyUserDto.class, MemberCategory.values());
         }
     }
 }

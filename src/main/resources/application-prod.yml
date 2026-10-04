@@ -21,3 +21,10 @@ pohr:
     retention-days: ${METRICS_RETENTION_DAYS:7}
   scripts:
     home: ${SCRIPTS_HOME:/app/scripts}
+  telegram:
+    socks-port: 10809
+    metrics-port: 9400
+    install:
+      version: ${TELEMT_VERSION:latest}
+      download-url-template: https://github.com/telemt/telemt/releases/download/v{version}/telemt-{platform}.tar.gz
+      fallback-url-template: ${TELEMT_FALLBACK_URL:}

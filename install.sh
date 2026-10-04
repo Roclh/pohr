@@ -8,6 +8,7 @@ IMAGE="${POHR_IMAGE:-roclh/pohr:latest}"
 INSTALL_DIR="${POHR_DIR:-/opt/pohr}"
 PORT="${POHR_PORT:-8080}"
 VPN_PORT="${POHR_VPN_PORT:-8443}"
+POHR_TELEMT_PORT=3128
 
 log() { echo -e "\033[1;36m[pohr-install]\033[0m $*"; }
 die() { echo -e "\033[1;31m[pohr-install] ERROR:\033[0m $*" >&2; exit 1; }

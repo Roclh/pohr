@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head(#{admin.telegram.title})}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<nav th:replace="~{fragments/layout :: crumbs('admin.telegram.title', null, null)}"></nav>
+
+<main class="container">
+    <h1 th:text="#{admin.telegram.title}">Telegram MTProto</h1>
+
+    <div th:if="${successMessage}" class="alert success" th:text="#{${successMessage}}"></div>
+    <div th:if="${errorMessage}" class="alert error" th:text="${errorMessage}"></div>
+
+    <p class="muted" th:text="#{admin.telegram.text}">
+        MTProto-прокси (telemt) поверх EU-туннеля. Трафик уходит через Xray outbound 'eu'.
+    </p>
+
+    <!-- ==== Status ==== -->
+    <section class="card">
+        <h2 th:text="#{admin.telegram.status}">Статус</h2>
+        <p>
+            <span th:if="${configDto.running()}" class="badge enabled"
+                  th:text="#{admin.xray.running}">running</span>
+            <span th:unless="${configDto.running()}" class="badge stopped"
+                  th:text="#{admin.xray.stopped}">stopped</span>
+        </p>
+        <p th:if="${configDto.running()}">
+            <span th:text="#{admin.xray.pid}">PID:</span>
+            <code th:text="${configDto.pid()}">1234</code>
+            <span>·</span>
+            <span th:text="#{admin.xray.started}">started at</span>
+            <code th:text="${configDto.startedAt()}">2026-10-04T15:58:21Z</code>
+        </p>
+        <p>
+            <span th:text="#{admin.telegram.version}">Версия:</span>
+            <code th:if="${configDto.version() != null}" th:text="${configDto.version()}">2.1.7</code>
+            <span th:unless="${configDto.version() != null}" class="muted"
+                  th:text="#{admin.xray.not-installed}">not installed</span>
+        </p>
+        <p>
+            <span th:text="#{admin.telegram.listenPort}">Порт:</span>
+            <code th:text="${configDto.listenPort()}">3128</code>
+            <span>·</span>
+            <span th:text="#{admin.telegram.users}">Пользователей:</span>
+            <code th:text="${configDto.userCount()}">0</code>
+        </p>
+
+        <div class="form-actions">
+            <form th:action="@{/admin/telegram/start}" method="post" class="inline">
+                <button type="submit" th:disabled="${configDto.running()}"
+                        th:text="#{admin.xray.start}">Запустить</button>
+            </form>
+            <form th:action="@{/admin/telegram/stop}" method="post" class="inline">
+                <button type="submit" th:disabled="${!configDto.running()}"
+                        th:text="#{admin.xray.stop}">Остановить</button>
+            </form>
+            <form th:action="@{/admin/telegram/restart}" method="post" class="inline">
+                <button type="submit" th:disabled="${!configDto.running()}"
+                        th:text="#{admin.xray.restart}">Перезапустить</button>
+            </form>
+        </div>
+    </section>
+
+    <section class="card">
+        <h2 th:text="#{admin.telegram.install.title}">Установка / Обновление</h2>
+        <form th:action="@{/admin/telegram/install}" method="post" class="inline-form">
+            <label>
+                <span th:text="#{admin.telegram.install.version}">Версия</span>
+                <input type="text" name="version" required
+                       placeholder="latest"
+                       th:value="${configDto.version()} ?: ''">
+            </label>
+            <button type="submit" th:text="#{admin.telegram.install.submit}">Установить</button>
+        </form>
+        <p class="hint" th:text="#{admin.telegram.install.hint}">
+            Скачивает бинарник telemt и заменяет текущий. Предыдущая версия сохраняется как telemt.bak.
+            Принимает точную версию (2.1.7) или latest.
+        </p>
+    </section>
+
+    <!-- ==== Global config ==== -->
+    <section class="card">
+        <h2 th:text="#{admin.telegram.config}">Конфигурация прокси</h2>
+
+        <form th:action="@{/admin/telegram/config}" th:object="${configForm}" method="post" class="form">
+            <div class="field" th:classappend="${#fields.hasErrors('listenPort')} ? 'has-error'">
+                <label for="listenPort" th:text="#{admin.telegram.listenPort}">Порт прослушивания</label>
+                <input type="number" id="listenPort" th:field="*{listenPort}" min="1" max="65535">
+                <p class="field-error" th:if="${#fields.hasErrors('listenPort')}"
+                   th:errors="*{listenPort}">error</p>
+            </div>
+
+            <div class="field" th:classappend="${#fields.hasErrors('coverDomain')} ? 'has-error'">
+                <label for="coverDomain" th:text="#{admin.telegram.coverDomain}">Cover domain (маскировка)</label>
+                <input type="text" id="coverDomain" th:field="*{coverDomain}"
+                       placeholder="www.cloudflare.com">
+                <p class="hint" th:text="#{admin.telegram.coverDomain.hint}">
+                    Домен для TLS-fronting. Должен быть популярным и незаблокированным.
+                </p>
+                <p class="field-error" th:if="${#fields.hasErrors('coverDomain')}"
+                   th:errors="*{coverDomain}">error</p>
+            </div>
+
+            <div class="field checkbox">
+                <label>
+                    <input type="checkbox" th:field="*{webEnabled}">
+                    <span th:text="#{admin.telegram.webEnabled}">WEB-прокси (Telegram Desktop)</span>
+                </label>
+                <p class="hint" th:text="#{admin.telegram.webEnabled.hint}">
+                    Требует TLS-терминацию на Nginx/Haproxy на :443. Секреты должны быть classic (32 hex).
+                </p>
+            </div>
+
+            <div class="form-actions">
+                <button type="submit" th:text="#{user.form.save}">Сохранить</button>
+            </div>
+        </form>
+    </section>
+
+    <!-- ==== Users (read-only) ==== -->
+    <section class="card">
+        <h2 th:text="#{admin.telegram.userList}">Пользователи</h2>
+        <p class="muted" th:text="#{admin.telegram.usersHint}">
+            Управление ссылками — на странице пользователей.
+        </p>
+
+        <table class="table" th:if="${!#lists.isEmpty(users)}">
+            <thead>
+            <tr>
+                <th th:text="#{admin.telegram.userLabel}">Label</th>
+                <th th:text="#{admin.telegram.userEnabled}">Активен</th>
+                <th th:text="#{admin.telegram.userSecret}">Секрет</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="u : ${users}">
+                <td data-label="Label"><code th:text="${u.label()}">alice</code></td>
+                <td data-label="Enabled">
+                    <span class="badge" th:classappend="${u.enabled()} ? 'enabled' : 'disabled'"
+                          th:text="${u.enabled()} ? #{common.yes} : #{common.no}">yes</span>
+                </td>
+                <td data-label="Secret">
+                    <span th:if="${u.secret() == null}" class="badge user"
+                          th:text="#{admin.telegram.secret.notGenerated}">not generated</span>
+                    <code th:if="${u.secret() != null}"
+                          th:text="${#strings.substring(u.secret(), 0, 16)} + '…'">ee…</code>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+        <p th:if="${#lists.isEmpty(users)}" class="muted"
+           th:text="#{admin.telegram.noUsers}">Пользователей пока нет.</p>
+    </section>
+</main>
+</body>
+</html>

@@ -67,6 +67,21 @@
         </div>
     </section>
 
+    <section class="card" th:if="${tgProxyUrl != null}">
+        <h2 th:text="#{home.tg.title}">Telegram MTProto</h2>
+        <p class="hint" th:text="#{home.tg.hint}">Откройте на телефоне — прокси добавится автоматически.</p>
+        <div class="copy-box">
+            <input type="text" readonly th:value="${tgProxyUrl}" id="tg-url">
+            <button type="button" class="copy-btn" data-copy-target="tg-url"
+                    th:text="#{home.subscription.copy}">Copy</button>
+        </div>
+        <div class="copy-box" th:if="${tgWebProxyUrl != null}" style="margin-top:8px;">
+            <input type="text" readonly th:value="${tgWebProxyUrl}" id="tg-web">
+            <button type="button" class="copy-btn" data-copy-target="tg-web"
+                    th:text="#{home.tg.web}">WEB</button>
+        </div>
+    </section>
+
     <details class="advanced-block" th:if="${subscriptionUrl}">
         <summary th:text="#{home.subscription.advanced}">Manual setup</summary>
         <div class="advanced-block-body">

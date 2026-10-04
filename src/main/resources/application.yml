@@ -6,8 +6,11 @@ spring:
     encoding: UTF-8
     fallback-to-system-locale: false
   datasource:
-    url: jdbc:sqlite:./data/pohr.db
+    url: jdbc:sqlite:./data/pohr.db?journal_mode=WAL&busy_timeout=5000&synchronous=NORMAL
     driver-class-name: org.sqlite.JDBC
+    hikari:
+      maximum-pool-size: 4
+      minimum-idle: 1
   jpa:
     hibernate:
       ddl-auto: validate
@@ -40,6 +43,14 @@ pohr:
     interval-ms: 60000
     initial-delay-ms: 15000
     retention-days: 7
+  telegram:
+    socks-port: 10809
+    metrics-port: 9400
+    install:
+      public-port: ${TELEMT_PUBLIC_PORT:443}
+      version: ${TELEMT_VERSION:latest}
+      download-url-template: ${TELEMT_DOWNLOAD_URL:https://github.com/telemt/telemt/releases/download/{version}/telemt-{platform}.tar.gz}
+      fallback-url-template: ${TELEMT_FALLBACK_URL:}
 
 xray:
   server:

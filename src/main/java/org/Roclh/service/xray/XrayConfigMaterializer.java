@@ -60,7 +60,7 @@ public class XrayConfigMaterializer {
     private void injectEuOutbound(JsonNode root) {
         if (!(root instanceof ObjectNode rootObj)) return;
 
-        List<EuNode> activeNodes = euNodeService.findActive();
+        List<EuNode> activeNodes = euNodeService.findCandidates();
         if (activeNodes.isEmpty()) {
             log.debug("No active EU node, running config as-is (freedom only)");
             return;
@@ -119,9 +119,6 @@ public class XrayConfigMaterializer {
                 ObjectNode client = objectMapper.createObjectNode();
                 client.put("id", sub.getXrayUuid());
                 client.put("email", sub.getId().toString());
-                if (tcpReality) {
-                    client.put("flow", "xtls-rprx-vision");
-                }
                 clients.add(client);
             }
             log.info("Injected {} client(s) into inbound on port {}",

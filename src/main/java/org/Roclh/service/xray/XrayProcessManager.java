@@ -15,6 +15,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
@@ -184,7 +185,9 @@ public class XrayProcessManager {
     }
 
     public synchronized List<String> recentLogs(int limit) {
-        return logBuffer.stream().skip(Math.max(0, logBuffer.size() - limit)).toList();
+        return new ArrayList<>(logBuffer.stream()
+                .skip(Math.max(0, logBuffer.size() - limit))
+                .toList());
     }
 
     private synchronized void appendLog(String line) {

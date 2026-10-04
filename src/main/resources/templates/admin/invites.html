@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head(#{admin.invites.title})}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+
+<main class="container">
+    <h1 th:text="#{admin.invites.title}">Invites</h1>
+
+    <div th:if="${successMessage}" class="alert success" th:text="#{${successMessage}}"></div>
+    <div th:if="${errorMessage}" class="alert error" th:text="${errorMessage}"></div>
+
+    <p class="muted" th:text="#{admin.invites.text}">Invite links create an account on first open.</p>
+
+    <div class="toolbar">
+        <a class="button" th:href="@{/admin/invites/new}" th:text="#{admin.invites.new}">New invite</a>
+        <a class="link" th:href="@{/admin}" th:text="#{common.back}">Back</a>
+    </div>
+
+    <table class="table" th:if="${!#lists.isEmpty(invites)}">
+        <thead>
+        <tr>
+            <th th:text="#{invite.list.role}">Role</th>
+            <th th:text="#{invite.list.expires}">Expires</th>
+            <th th:text="#{invite.list.status}">Status</th>
+            <th class="actions" th:text="#{invite.list.actions}">Actions</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="i : ${invites}">
+            <td><span class="badge user" th:text="${i.role}">USER</span></td>
+            <td th:text="${#strings.substringBefore(i.expiresAt.toString(), '.')}">2026-01-01T00:00:00</td>
+            <td>
+                <span th:if="${i.usedAt != null}" class="badge disabled" th:text="#{invite.list.used}">used</span>
+                <span th:if="${i.usedAt == null and i.expiresAt.isBefore(T(java.time.Instant).now())}"
+                      class="badge disabled" th:text="#{invite.list.expired}">expired</span>
+                <span th:if="${i.usedAt == null and i.expiresAt.isAfter(T(java.time.Instant).now())}"
+                      class="badge enabled" th:text="#{invite.list.active}">active</span>
+            </td>
+            <td class="actions">
+                <a class="link" th:href="@{/admin/invites/{t}(t=${i.token})}"
+                   th:text="#{invite.list.open}">Open</a>
+                <form th:action="@{/admin/invites/{t}/delete(t=${i.token})}" method="post" class="inline"
+                      onsubmit="return confirm(this.dataset.confirm)"
+                      th:data-confirm="#{invite.list.delete.confirm}">
+                    <button type="submit" class="link-button danger" th:text="#{invite.list.delete}">Delete</button>
+                </form>
+            </td>
+        </tr>
+        </tbody>
+    </table>
+
+    <p th:if="${#lists.isEmpty(invites)}" class="muted" th:text="#{invite.list.empty}">No invites yet</p>
+</main>
+</body>
+</html>

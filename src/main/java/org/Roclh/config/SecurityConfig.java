@@ -18,6 +18,7 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/login", "/css/**", "/js/**", "/api/health").permitAll()
                         .requestMatchers("/sub/**").permitAll()
+                        .requestMatchers("/invite/**").permitAll()
                         .requestMatchers("/api/nodes/**").permitAll()
                         .requestMatchers("/admin/**").hasRole("ADMIN")
                         .requestMatchers("/ws/**").authenticated()

@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -39,9 +40,10 @@ public class AdminEuNodeController {
 
     @GetMapping
     public String list(Model model) {
-        List<EuNodeDto> nodes = nodeService.findAll().stream()
-                .map(EuNodeDto::from)
-                .toList();
+        List<EuNodeDto> nodes = new ArrayList<>(
+                nodeService.findAll().stream()
+                        .map(EuNodeDto::from)
+                        .toList());
         model.addAttribute("nodes", nodes);
         return "admin/eu-nodes";
     }

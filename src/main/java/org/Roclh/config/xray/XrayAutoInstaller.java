@@ -2,9 +2,11 @@ package org.Roclh.config.xray;
 
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.Roclh.service.xray.XrayAssetService;
 import org.Roclh.service.xray.XrayConfigMaterializer;
 import org.Roclh.service.xray.XrayConfigService;
 import org.Roclh.service.xray.XrayInstaller;
+import org.Roclh.service.xray.XrayProcessManager;
 import org.Roclh.service.xray.XrayVersionResolver;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationRunner;
@@ -20,12 +22,17 @@ public class XrayAutoInstaller {
     private final XrayVersionResolver versionResolver;
     private final XrayConfigService configService;
     private final XrayConfigMaterializer materializer;
+    private final XrayAssetService assetService;
+    private final XrayProcessManager processManager;
 
     @Value("${xray.install.auto:true}")
     private boolean autoInstall;
 
     @Value("${xray.install.version:latest}")
     private String version;
+
+    @Value("${xray.start.auto:true}")
+    private boolean autoStart;
 
     @Bean
     public ApplicationRunner xrayInstallRunner() {
@@ -34,22 +41,35 @@ public class XrayAutoInstaller {
                 log.info("Xray auto-install disabled");
                 return;
             }
-            String target = version;
-            if (target == null || target.isBlank() || "latest".equals(target)) {
-                String latest = versionResolver.resolveLatest();
-                if (latest == null) {
-                    log.warn("Could not resolve latest Xray version, skipping auto-install");
-                    return;
-                }
-                target = latest;
-            }
             try {
-                boolean installed = installer.install(target);
-                log.info(installed ? "Xray {} installed" : "Xray {} already up to date", target);
+                boolean explicitVersion = version != null && !version.isBlank()
+                        && !"latest".equals(version);
+
+                if (!installer.isInstalled()) {
+                    String resolved = explicitVersion ? version : versionResolver.resolveLatest();
+                    if (resolved == null) {
+                        log.warn("Could not resolve Xray version, skipping install");
+                        return;
+                    }
+                    installer.install(resolved);
+                    log.info("Xray {} installed on first boot", resolved);
+                } else if (explicitVersion && !version.equals(installer.installedVersion())) {
+                    installer.install(version);
+                    log.info("Xray pinned to {}", version);
+                } else {
+                    log.info("Xray {} already installed, keeping (set XRAY_VERSION to pin/upgrade)",
+                            installer.installedVersion());
+                }
+
+                assetService.ensureAssets();
                 configService.ensureDefault();
                 materializer.materialize();
+
+                if (autoStart && !processManager.isRunning()) {
+                    processManager.start();
+                }
             } catch (Exception e) {
-                log.error("Failed to auto-install Xray {}: {}", target, e.getMessage(), e);
+                log.error("Xray bootstrap failed: {}", e.getMessage(), e);
             }
         };
     }

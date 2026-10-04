@@ -9,3 +9,5 @@ databaseChangeLog:
       file: db/changelog/004-subscriptions-uuid/subscriptions_uuid.sql
   - include:
       file: db/changelog/005-eu-nodes/eu_nodes.sql
+  - include:
+      file: db/changelog/006-invite-tokens/invite_tokens.sql

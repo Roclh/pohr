@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head(#{invite.detail.title})}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+
+<main class="container">
+    <h1 th:text="#{invite.detail.title}">Invite link</h1>
+
+    <div th:if="${successMessage}" class="alert success" th:text="#{${successMessage}}"></div>
+
+    <section class="card">
+        <p class="hint" th:text="#{invite.detail.hint}">
+            Send this link to the person you're inviting. It expires at the timestamp below.
+        </p>
+        <div class="copy-box" style="margin: 12px 0;">
+            <input type="text" readonly th:value="${inviteUrl}" id="invite-url">
+            <button type="button" class="copy-btn" data-copy-target="invite-url"
+                    th:text="#{invite.detail.copy}">Copy</button>
+        </div>
+        <p>
+            <strong th:text="#{invite.detail.role}">Role</strong>:
+            <code th:text="${invite.role}">USER</code>
+        </p>
+        <p>
+            <strong th:text="#{invite.detail.expires}">Expires at</strong>:
+            <code th:text="${#strings.substringBefore(invite.expiresAt.toString(), '.')}">2026-01-01T00:00:00</code>
+        </p>
+    </section>
+
+    <div class="toolbar">
+        <a class="link" th:href="@{/admin/invites}" th:text="#{common.back}">Back</a>
+    </div>
+
+    <script>
+        document.querySelectorAll('[data-copy-target]').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const input = document.getElementById(btn.dataset.copyTarget);
+                navigator.clipboard.writeText(input.value).then(() => {
+                    const original = btn.textContent;
+                    btn.textContent = '✓';
+                    setTimeout(() => btn.textContent = original, 1200);
+                });
+            });
+        });
+    </script>
+</main>
+</body>
+</html>

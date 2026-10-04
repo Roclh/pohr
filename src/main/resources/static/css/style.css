@@ -298,3 +298,10 @@ button:disabled { opacity: .4; cursor: not-allowed; }
 .link-button.on-light:hover { color: #1e3a8a; }
 .link-button.on-light.danger { color: #b3261e; }
 .link-button.on-light.danger:hover { color: #7a1a14; }
+
+.import-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 12px;
+}

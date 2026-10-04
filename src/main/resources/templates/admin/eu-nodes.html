@@ -18,7 +18,7 @@
         <a class="link" th:href="@{/admin}" th:text="#{common.back}">Back</a>
     </div>
 
-    <table class="table" th:if="${!nodes.isEmpty()}">
+    <table class="table" th:if="${!#lists.isEmpty(nodes)}">
         <thead>
         <tr>
             <th th:text="#{node.list.name}">Name</th>
@@ -54,7 +54,7 @@
         </tbody>
     </table>
 
-    <p th:if="${nodes.isEmpty()}" class="muted" th:text="#{node.list.empty}">No nodes yet</p>
+    <p th:if="${#lists.isEmpty(nodes)}" class="muted" th:text="#{node.list.empty}">No nodes yet</p>
 </main>
 
 </body>

@@ -39,6 +39,12 @@
     </section>
 
     <section class="card">
+        <h2 th:text="#{admin.invites.title}">Invites</h2>
+        <p th:text="#{admin.invites.text}">Invite links create an account on first open.</p>
+        <a class="button" th:href="@{/admin/invites}" th:text="#{admin.invites.manage}">Manage invites</a>
+    </section>
+
+    <section class="card">
         <h2 th:text="#{admin.nodes.title}">EU nodes</h2>
         <p th:text="#{admin.nodes.text}">Register EU exit nodes.</p>
         <a class="button" th:href="@{/admin/nodes}" th:text="#{admin.nodes.manage}">Manage nodes</a>

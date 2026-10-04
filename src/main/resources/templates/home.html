@@ -35,6 +35,20 @@
             Downloads a .bat that configures v2rayN: adds the subscription, enables fragmentation, applies routing.
         </p>
     </section>
+    <section class="card" th:if="${subscriptionUrl}">
+        <h2 th:text="#{home.import.title}">Импорт конфигурации</h2>
+        <p class="hint" th:text="#{home.import.hint}">
+            Нажмите нужную кнопку на устройстве, где установлено приложение.
+        </p>
+        <div class="import-buttons">
+            <a class="button" th:attr="href=${happLink}">Happ (iOS/Android)</a>
+            <a class="button" th:attr="href=${v2rayNgLink}">v2rayNG (Android)</a>
+            <a class="button" th:attr="href=${streisandLink}">Streisand (iOS)</a>
+            <a class="button" th:attr="href=${shadowrocketLink}">Shadowrocket (iOS)</a>
+            <a class="button" th:attr="href=${karingLink}">Karing (iOS)</a>
+            <a class="button" th:href="@{'/sub/' + ${subscriptionToken} + '/setup.bat'}">v2rayN (Windows)</a>
+        </div>
+    </section>
 
     <script>
         document.querySelectorAll('[data-copy-target]').forEach(btn => {

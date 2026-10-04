@@ -20,7 +20,7 @@
         <a class="link" th:href="@{/admin}" th:text="#{common.back}">Back</a>
     </div>
 
-    <table class="table" th:if="${!scripts.isEmpty()}">
+    <table class="table" th:if="${!#lists.isEmpty(scripts)}">
         <thead>
         <tr>
             <th th:text="#{script.list.name}">Name</th>
@@ -55,7 +55,7 @@
         </tbody>
     </table>
 
-    <p th:if="${scripts.isEmpty()}" class="muted" th:text="#{script.list.empty}">No scripts yet</p>
+    <p th:if="${#lists.isEmpty(scripts)}" class="muted" th:text="#{script.list.empty}">No scripts yet</p>
 </main>
 
 </body>

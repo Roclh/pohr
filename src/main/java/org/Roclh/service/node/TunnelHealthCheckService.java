@@ -57,7 +57,7 @@ public class TunnelHealthCheckService {
             fixedDelayString  = "${pohr.eu-nodes.tunnel-check-interval:300000}",
             initialDelayString = "${pohr.eu-nodes.tunnel-check-initial-delay:30000}")
     public void checkTunnel() {
-        List<EuNode> candidates = nodeService.findActive();
+        List<EuNode> candidates = nodeService.findCandidates();
         if (candidates.isEmpty()) {
             log.debug("No active EU nodes to health-check");
             return;

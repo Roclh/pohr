@@ -7,6 +7,7 @@ public record EnrollmentResponse(
         String nodeSecret,
         String config,
         String configHash,
-        int pollIntervalSeconds
+        int pollIntervalSeconds,
+        String xrayVersion
 ) {
 }

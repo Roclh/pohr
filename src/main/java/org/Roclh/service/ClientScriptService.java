@@ -16,11 +16,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.time.Instant;
-import java.util.Arrays;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.regex.Pattern;
 
 @Slf4j
@@ -67,14 +63,14 @@ public class ClientScriptService {
 
     public List<ScriptInfo> list() {
         Path home = homePath();
-        if (!Files.exists(home)) return List.of();
+        if (!Files.exists(home)) return new ArrayList<>();
         try (var stream = Files.list(home)) {
-            return stream
+            return new ArrayList<>(stream
                     .filter(Files::isRegularFile)
                     .filter(p -> !p.getFileName().toString().startsWith("."))
                     .sorted(Comparator.comparing(p -> p.getFileName().toString()))
                     .map(this::toInfo)
-                    .toList();
+                    .toList());
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -94,8 +90,22 @@ public class ClientScriptService {
         if (Files.exists(path)) {
             backup(path);
         }
-        Files.writeString(path, content, StandardCharsets.UTF_8);
-        log.info("Script '{}' saved ({} bytes)", name, content.length());
+        String normalized = normalizeLineEndings(name, content);
+        Files.writeString(path, normalized, StandardCharsets.UTF_8);
+        log.info("Script '{}' saved ({} bytes)", name, normalized.length());
+    }
+
+    /** .sh — LF; .bat/.cmd/.ps1 — CRLF; остальное — как есть. */
+    private String normalizeLineEndings(String name, String content) {
+        String lower = name.toLowerCase();
+        String lf = content.replace("\r\n", "\n").replace("\r", "\n");
+        if (lower.endsWith(".sh")) {
+            return lf;
+        }
+        if (lower.endsWith(".bat") || lower.endsWith(".cmd") || lower.endsWith(".ps1")) {
+            return lf.replace("\n", "\r\n");
+        }
+        return content;
     }
 
     public void reset(String name) throws IOException {

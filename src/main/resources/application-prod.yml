@@ -7,9 +7,12 @@ xray:
     fallback-url-template: ${XRAY_FALLBACK_URL:}
   server:
     host: ${XRAY_HOST:}
+    public-port: ${XRAY_PUBLIC_PORT:443}
   reality:
     dest: ${XRAY_REALITY_DEST:www.microsoft.com:443}
     server-names: ${XRAY_REALITY_SNI:www.microsoft.com}
+  start:
+    auto: ${XRAY_AUTO_START:true}
 
 pohr:
   scripts:

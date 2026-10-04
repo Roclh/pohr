@@ -13,6 +13,7 @@ import org.Roclh.model.dto.NodeHealthRequest;
 import org.Roclh.service.ClientScriptService;
 import org.Roclh.service.node.EuConfigService;
 import org.Roclh.service.node.EuNodeService;
+import org.Roclh.service.xray.XrayInstaller;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -34,6 +35,7 @@ public class EuNodeApiController {
     private final EuNodeService nodeService;
     private final EuConfigService configService;
     private final ClientScriptService scriptService;
+    private final XrayInstaller installer;
 
     @Value("${pohr.public-url:}")
     private String publicUrlOverride;
@@ -86,7 +88,10 @@ public class EuNodeApiController {
         vars.put("ENROLL_TOKEN", token);
         vars.put("RU_URL", resolveBaseUrl(request));
         vars.put("SSH_KEYS", sshAuthorizedKeys == null ? "" : sshAuthorizedKeys);
-        vars.put("XRAY_VERSION", defaultXrayVersion);
+        vars.put("XRAY_VERSION",
+                installer.installedVersion() != null
+                        ? installer.installedVersion()
+                        : defaultXrayVersion);
         vars.put("NODE_PORT", String.valueOf(defaultNodePort));
         try {
             byte[] bytes = scriptService.renderBytes("eu-node-setup.sh", vars);
@@ -114,7 +119,8 @@ public class EuNodeApiController {
             String hash = configService.computeHash(config);
             nodeService.updateConfigHash(node.getId(), hash);
             return ResponseEntity.ok(new EnrollmentResponse(
-                    node.getId(), node.getNodeSecret(), config, hash, 300));
+                    node.getId(), node.getNodeSecret(), config, hash, 300,
+                    installer.installedVersion()));
         } catch (IllegalArgumentException e) {
             log.warn("Enrollment failed: {}", e.getMessage());
             return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
@@ -134,12 +140,17 @@ public class EuNodeApiController {
         EuNode node = nodeOpt.get();
         String config = configService.buildEuConfig(node);
         String hash = configService.computeHash(config);
+        String ruXrayVersion = installer.installedVersion();
         if (hash.equals(ifNoneMatch)) {
-            return ResponseEntity.status(304).header("ETag", hash).build();
+            return ResponseEntity.status(304)
+                    .header("ETag", hash)
+                    .header("X-Pohr-Xray-Version", ruXrayVersion == null ? "" : ruXrayVersion)
+                    .build();
         }
         nodeService.updateConfigHash(id, hash);
         return ResponseEntity.ok()
                 .header("ETag", hash)
+                .header("X-Pohr-Xray-Version", ruXrayVersion == null ? "" : ruXrayVersion)
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(config);
     }

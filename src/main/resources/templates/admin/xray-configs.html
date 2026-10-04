@@ -18,7 +18,7 @@
         <a class="link" th:href="@{/admin/xray}" th:text="#{common.back}">Back</a>
     </div>
 
-    <table class="table" th:if="${!configs.isEmpty()}">
+    <table class="table" th:if="${!#lists.isEmpty(configs)}">
         <thead>
         <tr>
             <th th:text="#{xray.config.list.name}">Name</th>
@@ -66,7 +66,7 @@
         </tbody>
     </table>
 
-    <p th:if="${configs.isEmpty()}" class="muted" th:text="#{xray.config.list.empty}">No configurations yet</p>
+    <p th:if="${#lists.isEmpty(configs)}" class="muted" th:text="#{xray.config.list.empty}">No configurations yet</p>
 </main>
 
 </body>

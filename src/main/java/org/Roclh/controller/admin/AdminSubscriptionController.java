@@ -7,6 +7,7 @@ import org.Roclh.model.Subscription;
 import org.Roclh.model.User;
 import org.Roclh.model.dto.SubscriptionDto;
 import org.Roclh.model.dto.SubscriptionForm;
+import org.Roclh.service.PublicUrlResolver;
 import org.Roclh.service.SubscriptionService;
 import org.Roclh.service.UserService;
 import org.springframework.stereotype.Controller;
@@ -16,6 +17,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -26,12 +28,14 @@ public class AdminSubscriptionController {
 
     private final SubscriptionService subscriptionService;
     private final UserService userService;
+    private final PublicUrlResolver publicUrlResolver;
 
     @GetMapping
     public String list(HttpServletRequest request, Model model) {
-        List<SubscriptionDto> subs = subscriptionService.findAll().stream()
-                .map(s -> toDto(s, request))
-                .toList();
+        List<SubscriptionDto> subs = new ArrayList<>(
+                subscriptionService.findAll().stream()
+                        .map(s -> toDto(s, request))
+                        .toList());
         model.addAttribute("subscriptions", subs);
         return "admin/subscriptions";
     }
@@ -89,12 +93,7 @@ public class AdminSubscriptionController {
         String username = userService.findById(s.getUserId())
                 .map(User::getUsername)
                 .orElse("?");
-        String host = request.getServerName();
-        if ("localhost".equalsIgnoreCase(host) || "::1".equals(host)) {
-            host = "127.0.0.1";
-        }
-        int port = request.getServerPort();
-        String url = "http://" + host + ":" + port + "/sub/" + s.getToken();
+        String url = publicUrlResolver.resolve(request) + "/sub/" + s.getToken();
         return new SubscriptionDto(
                 s.getId(),
                 s.getUserId(),

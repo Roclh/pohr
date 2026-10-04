@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title th:text="#{invite.accept.title}">Invite</title>
+    <link rel="stylesheet" th:href="@{/css/style.css}">
+</head>
+<body class="login-page">
+
+<div class="login-card">
+    <h1 th:text="#{app.title}">Pohr</h1>
+    <h2 th:text="#{invite.accept.subtitle}">Create your account</h2>
+
+    <div th:if="${errorMessage}" class="alert error" th:text="#{${errorMessage}}"></div>
+
+    <form th:action="@{'/invite/' + ${token}}" th:object="${form}" method="post">
+        <label>
+            <span th:text="#{invite.accept.username}">Username</span>
+            <input type="text" th:field="*{username}" autofocus required>
+            <span class="field-error" th:if="${#fields.hasErrors('username')}" th:errors="*{username}">err</span>
+        </label>
+        <label>
+            <span th:text="#{invite.accept.password}">Password</span>
+            <input type="password" th:field="*{password}" required autocomplete="new-password">
+            <span class="field-error" th:if="${#fields.hasErrors('password')}" th:errors="*{password}">err</span>
+        </label>
+        <button type="submit" th:text="#{invite.accept.submit}">Create account</button>
+    </form>
+
+    <div class="lang-switch-login">
+        <a th:href="@{''(lang='en')}" th:text="#{lang.en}">EN</a>
+        <span>·</span>
+        <a th:href="@{''(lang='ru')}" th:text="#{lang.ru}">RU</a>
+    </div>
+</div>
+
+</body>
+</html>

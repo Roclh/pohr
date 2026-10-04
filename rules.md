@@ -124,6 +124,8 @@ Xray-конфиг **не хранится в файле**. Источник ис
 - [x] `XrayConfigMaterializer` — материализует активный конфиг из БД + инжектит клиентов из активных подписок
 - [x] `XrayVersionRegistry` — хранит установленную версию в файле
 - [x] `XrayAutoInstaller` — установка + `ensureDefault()` + `materialize()` при старте
+- [x] `XrayAutoInstaller` — не переустанавливает Xray при каждом старте, если бинарник уже есть и `XRAY_VERSION` не задан явно (ручной апдейт через UI переживает рестарт контейнера)
+- [x] `X-Pohr-Xray-Version` header в `/api/nodes/{id}/config` — EU-нода узнаёт версию Xray на RU
 - [x] WebSocket `/ws/xray-logs` — live-стрим логов
 
 ### Безопасность
@@ -143,6 +145,9 @@ Xray-конфиг **не хранится в файле**. Источник ис
 - [x] URL подписки собирается динамически с учётом host/port запроса
 - [x] Подписка создаётся автоматически при первом заходе пользователя на `/home`
 - [x] `GET /sub/{token}/rules.json` — routing rules для v2rayN (ru-direct)
+- [x] `XrayConfigService.parseLinks` строит одну ссылку на подписку с её `xrayUuid`, без перебора чужих UUID из `clients[]`
+- [x] `fp` в vless-ссылке читается из `realitySettings.fingerprint` конфига, не хардкод
+- [x] `flow=xtls-rprx-vision` добавляется только при `network=tcp`, для xhttp — не добавляется
 
 ### Клиентские скрипты (установщики)
 
@@ -163,469 +168,133 @@ Xray-конфиг **не хранится в файле**. Источник ис
 - [x] `hints.resources().registerPattern("db/changelog/**")`, `i18n/messages*`
 - [x] Работает установка Xray из нативного образа (Java HTTP Client, ZipInputStream)
 
+### EU-ноды (orchestration)
+
+- [x] `EuNode`, `EnrollmentToken`, `NodeStatus` — модель данных
+- [x] `EuNodeRepository`, `EnrollmentTokenRepository`
+- [x] `EuNodeService` — CRUD, токены, register/update, health, ротация секрета/туннеля
+- [x] `EuConfigService` — генерация EU-конфига (`buildEuConfig`), outbound к EU (`buildEuOutbound`), healthcheck-inbound (`buildHealthcheckInbound`), routing (`buildRouting`)
+- [x] `EuNodeApiController` — `/api/nodes/bootstrap.sh`, `/register`, `/{id}/config`, `/{id}/health`, `agent.sh`
+- [x] `AdminEuNodeController` — `/admin/nodes` CRUD + enroll-страница с curl-командой
+- [x] Шаблоны: `eu-nodes.html`, `eu-node-form.html`, `eu-node-enroll.html`, `eu-node-detail.html`
+- [x] `XrayConfigMaterializer.injectEuOutbound()` — добавляет `eu` outbound, healthcheck-inbound (SOCKS :10808) и routing в материализуемый конфиг
+- [x] `TunnelHealthCheckService` — активная проверка туннеля раз в 5 минут через SOCKS :10808, порог 3 подряд провала → UNREACHABLE
+- [x] Bootstrap-скрипт `resources/scripts/eu-node-setup.sh` — установка Xray, генерация keypair, enroll, systemd, cron, health
+- [x] `resources/scripts/pohr-agent.sh` — polling конфига каждые 5 минут, health push
+- [x] Первая реальная EU-нода развёрнута и работает (RU → EU → интернет)
+- [x] RU↔EU-туннель проверен: **`last_tunnel_ip = EU-IP`** в UI ноды
+- [x] **Синхронизация версии Xray RU↔EU** через заголовок `X-Pohr-Xray-Version` в `/api/nodes/{id}/config`
+- [x] `pohr-agent.sh` умеет сам обновлять Xray (`update_xray()`): читает версию из заголовка, при расхождении скачивает с GitHub, валидирует, подменяет бинарник через systemd
+- [x] `pohr-agent.sh` сохраняет ETag в `/etc/pohr/config.etag` вместо локального sha256 — прекращены ложные рестарты Xray каждые 5 минут
+- [x] `pohr-agent.sh` не падает на `xray version | head -1` под `set -o pipefail` (SIGPIPE обёрнут через `|| true` + `awk 'NR==1 {print $2}'`)
+
+### HTTPS / Reverse proxy
+
+- [x] Caddy установлен на RU-сервере, HTTPS на `https://pohr-roclh.xyz`
+- [x] Let's Encrypt сертификаты для `pohr-roclh.xyz` и `www.pohr-roclh.xyz`, автопродление
+- [x] HTTP → HTTPS редирект
+- [x] Порт 8080 закрыт наружу, Caddy проксирует через `127.0.0.1:8080`
+- [x] Порт 8443 открыт наружу для VPN-клиентов и EU-нод
+- [x] `POHR_PUBLIC_URL=https://pohr-roclh.xyz` в `.env`
+- [x] `server.forward-headers-strategy: framework` в `application.yml` — `request.getScheme()`/`getServerName()`/`getServerPort()` уважают `X-Forwarded-*` от Caddy
+- [x] `PublicUrlResolver` — единая точка сборки публичного URL, приоритет `pohr.public-url` > заголовки
+
+### Deployment
+
+- [x] Multi-stage `Dockerfile` — GraalVM builder + Debian runtime
+- [x] `install.sh` — установка Docker (fallback на static binary для EOL Debian), генерация `.env`, запуск контейнера
+- [x] Fat Docker image (665 МБ на диске, 168 МБ сжатый) собирается, запускается за 2 сек
+- [x] `docker-compose.prod.yml` с env-переменными
+- [x] Dockerfile builder — BuildKit cache mounts для `~/.gradle` и wrapper (повторные сборки ~5–15 сек вместо минут)
+
+### Хостинг / инфраструктура
+
+- [x] RU-сервер: Selectel, Debian 11 (EOL), 20 ГБ, 45.131.43.6
+- [x] EU-сервер: 78.17.145.160, Debian 11 (EOL), SSH на порту **6155** (не 22!)
+- [x] Домен `pohr-roclh.xyz` куплен через Reg.ru, A-запись на RU-IP
+- [x] nftables вместо iptables на EU (iptables не установлен)
+- [x] Docker volume `pohr-xray` — 15 ГБ legacy Xray-логов удалено с RU, logrotate для journald
+
 ---
 
 ## 🚧 Что предстоит сделать
 
-### Приоритет 0: EU-ноды (автоматический enrollment + orchestration)
+### Приоритет 0: довести EU-ноды до прода
 
-**Цель:** админ на RU-мосте создаёт ноду в UI → копирует одну `curl | bash` команду → запускает её на чистом EU-VPS → через 30 секунд EU-нода работает, туннель поднят, клиенты ходят через неё. Всё остальное — автоматически.
+- [ ] **Материализация при создании подписки.** `getOrCreate` пишет UUID в БД, но Xray процесс не видит его до рестарта. Добавить `materialize() + restart` при первом создании подписки.
+- [ ] **SNI-мультиплексирование** (переехало из P1, стало P0) — см. P1.
 
-#### Архитектурные решения (зафиксированы)
+### Приоритет 1: скрытность (SNI-мультиплексирование)
 
-- **Трафик:** клиент → RU Xray (inbound) → RU outbound VLESS → EU Xray (inbound) → freedom → интернет.
-- **Auth:** клиент→RU по `xray_uuid` подписки; RU→EU по `tunnel_uuid` (один на EU-ноду). **EU ничего не знает про индивидуальных пользователей** — добавление юзера не трогает EU.
-- **Ключи:** Reality keypair генерится **на EU локально** (`xray x25519`). На RU уходит только `publicKey`. RU **никогда** не видит `privateKey` EU. В шаблоне конфига EU для поля `privateKey` — плейсхолдер `"__USE_LOCAL__"`, EU подменяет его своим.
-- **Enrollment:** одноразовый токен (TTL 1 час, генерится в UI), после enroll нода получает `nodeSecret` (64 hex, долгоживущий). Токен инвалидируется. Повторный enroll с тем же `name` → обновление существующей ноды (idempotent).
-- **Обновления конфига:** EU **pull-модель**. Cron на EU каждые 5 минут дёргает `GET /api/nodes/{id}/config` с `If-None-Match: <hash>`. RU отвечает `304` если hash не изменился, иначе новый JSON. RU никогда не пушит EU.
-- **Транспорт RU↔EU:** TCP + Reality (server-to-server, DPI неважен, оверхед минимальный). SNI/dest можно взять из глобальных `xray.reality.*` defaults.
-- **Routing на RU:** `geoip:ru`, `geoip:private`, `geosite:category-ru` → direct (freedom); всё остальное → EU-outbound. Позволит сохранить российские сервисы на прямом канале.
-- **Health:** два уровня. Пассивный — EU каждые 5 минут POST `/health` с `{xrayRunning, xrayVersion, configHash, uptime}`. Активный — RU по крону делает запрос через свой Xray-SOCKS на `https://api.ipify.org` и проверяет, что видит IP EU. Если IP RU — routing сломан; если ошибка — туннель недоступен.
-- **SSH ключи:** RU хранит глобальный список (`pohr.ssh.authorized-keys`, multiline env или таблица). При enroll EU-скрипт добавляет их в `~/.ssh/authorized_keys` (root и/или созданный пользователь).
+- [ ] **Xray вернуть на 443, Caddy переехать на 8444, вход на 443 — через Nginx stream с `ssl_preread`.** Сейчас Xray на 8443 = палево для DPI (нестандартный порт для HTTPS). Схема: Nginx на 443 смотрит SNI — если `xfit.ru` → Xray :8443, если `pohr-roclh.xyz` → Caddy :8444 (TLS). Тогда DPI видит: один IP, порт 443, отвечает сертификатом `xfit.ru` — как обычный сайт.
+- [ ] **Убрать порт 8443 из iptables на RU** — после SNI-мультиплексирования он не нужен.
+- [ ] **Проверить, что Let's Encrypt сертификаты не палят домен** — сейчас `crt.sh` показывает `pohr-roclh.xyz` → `45.131.43.6`. Для паранойи — DNS-01 challenge или не публиковать UI на собственном домене.
 
-#### Шаг 1. Модель данных + сервисы
+### Приоритет 2: стабильность инфраструктуры
 
-**Liquibase миграция** `db/changelog/005-eu-nodes/eu_nodes.sql`:
+- [ ] **Rebuild RU и EU на Debian 12/13.** Debian 11 EOL — репозитории удалены, Docker ставится из static binary, jq/unzip через `archive.debian.org`. Каждая новая установка пакета = новые грабли. Rebuild окупится с первого же обновления.
+- [ ] **`logrotate` для Xray-логов на EU.** В `/etc/logrotate.d/xray` настроить daily rotate + 100M maxsize, иначе `/var/log/xray/error.log` вырастет до гигабайт (как было на RU — 15 ГБ).
+- [ ] **Ограничить Docker-логи через `/etc/docker/daemon.json`** — `max-size: 10m`, `max-file: 3`. Иначе долгоживущий контейнер сожрёт диск.
 
-```sql
---liquibase formatted sql
+### Приоритет 3: надёжность клиентских установщиков
 
---changeset roclh:005-eu-nodes
-CREATE TABLE eu_nodes (
-    id                   VARCHAR(36)  PRIMARY KEY NOT NULL,
-    name                 VARCHAR(128) NOT NULL UNIQUE,
-    host                 VARCHAR(255) NOT NULL,
-    port                 INTEGER      NOT NULL,
-    reality_public_key   VARCHAR(64)  NOT NULL,
-    reality_short_id     VARCHAR(32)  NOT NULL,
-    tunnel_uuid          VARCHAR(36)  NOT NULL,
-    node_secret          VARCHAR(128) NOT NULL,
-    status               VARCHAR(16)  NOT NULL,
-    xray_version         VARCHAR(32),
-    agent_version        VARCHAR(32),
-    config_hash          VARCHAR(64),
-    last_health_at       VARCHAR(32),
-    last_health_msg      VARCHAR(512),
-    last_tunnel_check_at VARCHAR(32),
-    last_tunnel_ip       VARCHAR(64),
-    enrolled_at          VARCHAR(32)  NOT NULL,
-    enrolled_by          VARCHAR(36)  NOT NULL
-);
-CREATE UNIQUE INDEX idx_eu_nodes_tunnel_uuid ON eu_nodes (tunnel_uuid);
-CREATE INDEX idx_eu_nodes_status ON eu_nodes (status);
+- [ ] **Детект версии v2rayN** (CoreBasicItem → v7.x, иначе v6.x) — уже частично есть для фрагмента.
+- [ ] **Проверка запуска v2rayN после правки.** Ждёт 5 сек, проверяет `Get-Process v2rayN`. Если упал — восстанавливает из pristine.
+- [ ] **Параметр `-Fragment on|off|keep`** — некоторым провайдерам фрагмент мешает.
+- [ ] **Идемпотентный рестарт** — если конфиг содержит ту же подписку с тем же URL, не перезаписывать.
+- [ ] **`-Diagnose`** — диагностика без правок: показывает пути, состояние фрагмента и подписки.
+- [ ] **Нормализация line endings в `ClientScriptService.write()`.** `.sh` → LF, `.bat`/`.cmd`/`.ps1` → CRLF. Сейчас редактор через UI сохраняет CRLF в `.sh`, из-за чего bash падает на `set -euo pipefail` с ошибкой «invalid option namepefail». Плюс `.gitattributes` в репо.
+- [ ] **Убрать дубликаты DTO из `NativeHints`** (три рекорда зарегистрированы дважды в конце файла).
 
---changeset roclh:005-enrollment-tokens
-CREATE TABLE enrollment_tokens (
-    token       VARCHAR(64) PRIMARY KEY NOT NULL,
-    node_name   VARCHAR(128) NOT NULL,
-    created_by  VARCHAR(36) NOT NULL,
-    created_at  VARCHAR(32) NOT NULL,
-    expires_at  VARCHAR(32) NOT NULL,
-    used_at     VARCHAR(32)
-);
-CREATE INDEX idx_enrollment_tokens_expires ON enrollment_tokens (expires_at);
-```
+### Приоритет 4: клиентские установщики — расширение
 
-**Сущности:** `EuNode`, `EnrollmentToken`, `NodeStatus` (enum — хранится как VARCHAR: `PENDING`, `HEALTHY`, `DEGRADED`, `UNREACHABLE`).
-
-`EuNode` поля и `@JdbcTypeCode`: id (UUID/VARCHAR), name, host, port (int), realityPublicKey, realityShortId, tunnelUuid (UUID/VARCHAR), nodeSecret, status (enum → VARCHAR), xrayVersion, agentVersion, configHash, lastHealthAt (Instant), lastHealthMsg, lastTunnelCheckAt (Instant), lastTunnelIp, enrolledAt (Instant), enrolledBy (UUID/VARCHAR).
-
-**Репозитории:** `EuNodeRepository extends JpaRepository<EuNode, UUID>` с `findByName`, `findByStatusIn`, `existsByName`. `EnrollmentTokenRepository` с `findByExpiresAtBefore` (для очистки).
-
-**`EuNodeService`:** CRUD, `createEnrollmentToken(name, ttl)`, `consumeToken(token)` (проверка TTL, one-time use), `register(EnrollmentRequest)` → создать/обновить ноду, вернуть `nodeSecret` + первый конфиг.
-
-**Соглашения:**
-- `nodeSecret` генерится как `SecureRandom` 32 байта → hex 64 символа.
-- `tunnelUuid` — обычный `UUID.randomUUID()`.
-- Хранить `nodeSecret` в plaintext? Для MVP — да (иначе EU не сможет проверить), но с оговоркой: если БД утечёт — компромисс. Позже — HMAC.
-
-#### Шаг 2. Enrollment API + генерация конфигов
-
-**`EuNodeApiController`** (`org.Roclh.controller.api`, `permitAll` в SecurityConfig **только для этих путей**):
-
-| Endpoint | Auth | Что делает |
-|---|---|---|
-| `GET /api/nodes/bootstrap.sh?token=XXX` | no (токен) | Отдаёт `eu-node-setup.sh` с подставленными `{{ENROLL_TOKEN}}`, `{{RU_URL}}` (public URL моста), `{{SSH_KEYS}}` |
-| `POST /api/nodes/register` | токен в body | Принимает `{token, host, port, publicKey, shortId, xrayVersion, agentVersion}`, возвращает `{nodeId, nodeSecret, config, configHash, ruPublicKey?}` |
-| `GET /api/nodes/{id}/config` | header `X-Node-Secret` | Отдаёт актуальный конфиг EU. Поддерживает `If-None-Match` → 304 |
-| `POST /api/nodes/{id}/health` | header `X-Node-Secret` | Принимает `{status, xrayVersion, configHash, uptime}`, обновляет `lastHealth*` |
-| `POST /api/nodes/{id}/rotate-tunnel` | header `X-Node-Secret` | EU может запросить новый `tunnel_uuid` (например, если скомпрометирован) |
-
-**`EuConfigService`** — генерирует JSON-конфиги на лету:
-
-```java
-// EU config (inbound + freedom)
-public String buildEuConfig(EuNode node) {
-    return """
-      {
-        "log": {"loglevel": "warning"},
-        "inbounds": [{
-          "listen": "0.0.0.0",
-          "port": %d,
-          "protocol": "vless",
-          "settings": {
-            "clients": [{"id": "%s", "email": "ru-bridge"}],
-            "decryption": "none"
-          },
-          "streamSettings": {
-            "network": "tcp",
-            "security": "reality",
-            "realitySettings": {
-              "dest": "%s",
-              "serverNames": ["%s"],
-              "privateKey": "__USE_LOCAL__",
-              "shortIds": ["%s"]
-            }
-          }
-        }],
-        "outbounds": [{"protocol": "freedom", "tag": "direct"}]
-      }
-    """.formatted(node.getPort(), node.getTunnelUuid(),
-                  defaultDest, defaultSni, node.getRealityShortId());
-}
-```
-
-**RU-конфиг** — материализуется в `XrayConfigMaterializer`:
-- Из активного `XrayConfig` берём `inbounds`.
-- Добавляем `outbound` к EU:
-  ```json
-  {
-    "protocol": "vless",
-    "tag": "eu",
-    "settings": {
-      "vnext": [{
-        "address": "<eu.host>", "port": <eu.port>,
-        "users": [{"id": "<eu.tunnel_uuid>", "encryption": "none", "flow": "xtls-rprx-vision"}]
-      }]
-    },
-    "streamSettings": {
-      "network": "tcp", "security": "reality",
-      "realitySettings": {
-        "serverName": "<sni>", "publicKey": "<eu.reality_public_key>",
-        "shortId": "<eu.short_id>", "fingerprint": "chrome"
-      }
-    }
-  }
-  ```
-- Добавляем `routing`:
-  ```json
-  {
-    "domainStrategy": "IPIfNonMatch",
-    "rules": [
-      {"type": "field", "outboundTag": "direct", "domain": ["geosite:category-ru", "geosite:private"]},
-      {"type": "field", "outboundTag": "direct", "ip": ["geoip:ru", "geoip:private"]},
-      {"type": "field", "outboundTag": "eu", "network": "tcp,udp"}
-    ]
-  }
-  ```
-
-**Расширить `XrayConfigMaterializer`:**
-- Найти активную `EuNode` (`status IN (HEALTHY, DEGRADED)`, сортировка по `enrolled_at DESC`, для MVP — первая).
-- Если есть — добавить в материализуемый конфиг `eu` outbound + `routing` правила.
-- Если нет — оставить конфиг без изменений (работает как сейчас, freedom).
-
-**Считать `configHash`** как SHA-256 от **нормализованного** JSON (сериализация через `ObjectMapper` с сортировкой ключей) — чтобы любое изменение шаблона меняло hash.
-
-**`SecurityConfig`** — добавить в permitAll: `/api/nodes/bootstrap.sh`, `/api/nodes/register`. Остальные `/api/nodes/**` — внутри контроллера проверяют `X-Node-Secret` вручную (не через Spring Security).
-
-#### Шаг 3. Bootstrap EU-скрипта (`resources/scripts/eu-node-setup.sh`)
-
-Файл UTF-8 без BOM, отдаётся через `renderBytes` (уже умеет).
-
-**Логика скрипта (`curl | sudo bash`):**
-
-1. Проверка `EUID == 0`, иначе exit 1.
-2. Определение arch (`uname -m`): `x86_64` → amd64, `aarch64` → arm64.
-3. **Полная очистка:**
-   - `systemctl stop xray 2>/dev/null; systemctl disable xray 2>/dev/null`
-   - `rm -f /etc/systemd/system/xray*.service`
-   - `rm -rf /usr/local/xray /opt/xray /etc/xray /var/log/xray`
-   - `rm -f /usr/local/bin/xray`
-   - `crontab -l | grep -v pohr-agent | crontab -` (убрать старые cron-записи)
-   - `systemctl daemon-reload`
-4. **Очистка firewall правил, которые могли остаться:**
-   - UFW: `ufw delete allow 8443/tcp 2>/dev/null || true`
-   - iptables: `iptables -D INPUT -p tcp --dport 8443 -j ACCEPT 2>/dev/null || true`
-   - Не трогаем SSH-порт (22/2222 и т.п.) — только правило Xray-порта.
-5. **Скачивание Xray:** `curl -sL https://github.com/XTLS/Xray-core/releases/download/v${XRAY_VERSION}/Xray-linux-${ARCH}.zip` → `/tmp/xray.zip` → `unzip` → `/usr/local/xray/xray` → `chmod +x`.
-6. **Генерация keypair локально:**
-   ```bash
-   OUTPUT=$(/usr/local/xray/xray x25519)
-   PRIVATE_KEY=$(echo "$OUTPUT" | grep -E 'PrivateKey|Private key' | awk '{print $NF}')
-   PUBLIC_KEY=$(echo "$OUTPUT" | grep -E 'Password|Public key' | awk '{print $NF}')
-   SHORT_ID=$(openssl rand -hex 8)
-   echo "$PRIVATE_KEY" > /etc/xray/private.key
-   chmod 600 /etc/xray/private.key
-   ```
-7. **Определение внешнего IP:** `curl -s https://api.ipify.org`.
-8. **Enroll:**
-   ```bash
-   RESPONSE=$(curl -s -X POST $RU_URL/api/nodes/register \
-     -H "Content-Type: application/json" \
-     -d "{\"token\":\"$ENROLL_TOKEN\",\"host\":\"$PUBLIC_IP\",\"port\":8443,\"publicKey\":\"$PUBLIC_KEY\",\"shortId\":\"$SHORT_ID\",\"xrayVersion\":\"$XRAY_VERSION\"}")
-   NODE_ID=$(echo $RESPONSE | jq -r .nodeId)
-   NODE_SECRET=$(echo $RESPONSE | jq -r .nodeSecret)
-   CONFIG=$(echo $RESPONSE | jq -r .config)
-   ```
-   Если `jq` нет — установить (`apt install jq` / `yum install jq`).
-9. **Записать конфиг:**
-   - `mkdir -p /etc/xray`
-   - `echo "$CONFIG" | sed "s/__USE_LOCAL__/$PRIVATE_KEY/" > /etc/xray/config.json`
-   - Сохранить `nodeId`, `nodeSecret`, `ruUrl` в `/etc/pohr/node.json`.
-10. **Создать systemd unit** `/etc/systemd/system/xray.service`:
-    ```ini
-    [Unit]
-    Description=Xray Service
-    After=network.target
-    [Service]
-    Type=simple
-    ExecStart=/usr/local/xray/xray run -c /etc/xray/config.json
-    Restart=on-failure
-    RestartSec=5
-    LimitNOFILE=65536
-    [Install]
-    WantedBy=multi-user.target
-    ```
-11. **Firewall:** открыть `8443/tcp` через `ufw allow 8443/tcp` или `iptables -I INPUT -p tcp --dport 8443 -j ACCEPT`.
-12. **SSH ключи:** `{{SSH_KEYS}}` (multiline) → добавить в `/root/.ssh/authorized_keys` и `~/.ssh/authorized_keys` пользователя `$SUDO_USER`. Дедуп.
-13. **Установить pohr-agent** (см. шаг 4): скачать с `{{RU_URL}}/api/nodes/agent.sh?token=$NODE_ID`, положить в `/usr/local/bin/pohr-agent.sh`, chmod +x, добавить в cron.
-14. **Health-check:** `sleep 3 && systemctl is-active xray && ss -tlnp | grep 8443`. Если не активно — `journalctl -u xray -n 50 --no-pager` в stderr и `exit 2`.
-
-**Хранение конфига скрипта:**
-- `resources/scripts/eu-node-setup.sh` — бандл в образе (seed в volume, как client scripts).
-- Плейсхолдеры: `{{ENROLL_TOKEN}}`, `{{RU_URL}}`, `{{SSH_KEYS}}`, `{{XRAY_VERSION}}`, `{{NODE_PORT}}`.
-- `renderBytes` для `.sh` — UTF-8 (дефолт).
-
-**Безопасность:**
-- Токен через `?token=` в query — HTTPS обязателен в прод.
-- Логи скрипта писать в `/var/log/pohr-setup.log`.
-
-#### Шаг 4. Polling + health (agent.sh + RU-side tunnel check)
-
-**`resources/scripts/pohr-agent.sh`** — устанавливается на EU, cron каждые 5 минут:
-
-1. Прочитать `/etc/pohr/node.json` → `nodeId`, `nodeSecret`, `ruUrl`.
-2. `curl -sI -H "X-Node-Secret: $NODE_SECRET" -H "If-None-Match: $CURRENT_HASH" "$RU_URL/api/nodes/$NODE_ID/config"`.
-3. Если `304` — ничего. Если `200` — скачать JSON, подставить `privateKey` из `/etc/xray/private.key` вместо `__USE_LOCAL__`, провалидировать (`xray run -test -c /tmp/config.json`), atomic write → `mv /tmp/config.json /etc/xray/config.json`, `systemctl restart xray`.
-4. Собрать статус: `systemctl is-active xray`, `xray -version`, hash нового конфига, `uptime`.
-5. `curl -s -X POST -H "X-Node-Secret: $NODE_SECRET" -d '{"status":"...","xrayVersion":"...","configHash":"...","uptime":N}' "$RU_URL/api/nodes/$NODE_ID/health"`.
-6. При 5xx/таймауте — 3 retry с backoff. Логи в syslog.
-
-**RU-side активная проверка туннеля (`TunnelHealthCheckService`):**
-- `@Scheduled(fixedDelayString = "${pohr.tunnel-check.interval:300000}")` — каждые 5 минут.
-- Для каждой ноды в статусе `HEALTHY` или `DEGRADED`:
-   - SOCKS5-запрос на `127.0.0.1:10808` (healthcheck inbound).
-   - HTTP GET `https://api.ipify.org` через этот SOCKS.
-   - Ответ == `node.host` → OK, обновить `last_tunnel_ip`, `last_tunnel_check_at`.
-   - Ответ == RU-IP → `DEGRADED`.
-   - Timeout/ошибка → `UNREACHABLE`.
-
-**Healthcheck inbound** добавляется материализатором в RU-конфиг:
-```json
-{
-  "listen": "127.0.0.1",
-  "port": 10808,
-  "protocol": "socks",
-  "settings": {"auth": "noauth", "udp": false},
-  "tag": "healthcheck-socks"
-}
-```
-Routing: `inboundTag: ["healthcheck-socks"] → outboundTag: "eu"`.
-
-**Порог деградации:** 3 подряд провала → `UNREACHABLE`. 1 успех из 3 → `DEGRADED`. 3 из 3 → `HEALTHY`.
-
-**Config:**
-```yaml
-pohr:
-  eu-nodes:
-    enabled: true
-    health-check-interval: 5m
-    tunnel-socks-port: 10808
-    tunnel-check-url: https://api.ipify.org
-    enroll-token-ttl: 1h
-```
-
-#### Шаг 5. Admin UI для нод
-
-**Контроллер `AdminEuNodeController`** (`/admin/nodes`):
-
-- `GET /admin/nodes` — список: name, host, status (badge), last health, last tunnel IP, actions.
-- `GET /admin/nodes/new` — форма: `name`, TTL (default 1h). После создания — показать готовую curl-команду **один раз**:
-  ```
-  curl -sL http://ru.example:8080/api/nodes/bootstrap.sh?token=XXX | sudo bash
-  ```
-   + копирование (как subscription URL).
-- `GET /admin/nodes/{id}` — детально: все поля, кнопки `Re-enroll` (новый токен), `Delete` (только если `PENDING`/`UNREACHABLE` — иначе confirmation), `Rotate tunnel`.
-- `POST /admin/nodes/{id}/delete` — удалить ноду + инвалидировать все её токены.
-- `POST /admin/nodes/{id}/re-enroll` — сгенерировать новый токен для переустановки EU.
-
-**Шаблоны:** `admin/eu-nodes.html`, `admin/eu-node-form.html`, `admin/eu-node-detail.html`.
-
-**i18n ключи:** `admin.nodes.title`, `admin.nodes.new`, `node.list.name`, `node.list.status`, `node.form.ttl`, `node.detail.enroll-command`, `node.status.pending/healthy/degraded/unreachable`.
-
-**На `/admin`** — новая секция «EU nodes» с бейджем количества `HEALTHY/N`.
-
-#### Шаг 6. Dockerfile + раскатка RU-моста
-
-**Multi-stage `Dockerfile`:**
-
-```dockerfile
-# Stage 1: build native
-FROM ghcr.io/graalvm/native-image-community:25 AS builder
-WORKDIR /build
-COPY gradlew gradlew.bat settings.gradle build.gradle gradle.properties ./
-COPY gradle gradle
-COPY src src
-RUN ./gradlew nativeCompile --no-daemon
-
-# Stage 2: runtime (fat image — с Xray внутри)
-FROM alpine:3.20
-RUN apk add --no-cache curl unzip jq tzdata \
-    && adduser -D -u 1000 pohr
-WORKDIR /app
-
-ARG XRAY_VERSION=latest
-RUN mkdir -p /app/xray/bin \
-    && ARCH=$(uname -m | sed 's/x86_64/64/;s/aarch64/arm64-v8a/') \
-    && curl -sL "https://github.com/XTLS/Xray-core/releases/download/v${XRAY_VERSION}/Xray-linux-${ARCH}.zip" -o /tmp/x.zip \
-    && unzip /tmp/x.zip -d /app/xray/bin \
-    && chmod +x /app/xray/bin/xray \
-    && rm /tmp/x.zip
-
-COPY --from=builder /build/build/native/nativeCompile/pohr /app/pohr
-COPY --from=builder /build/src/main/resources/scripts /app/scripts-bundled
-
-RUN mkdir -p /app/data /app/scripts /app/xray/config \
-    && chown -R pohr:pohr /app
-
-USER pohr
-EXPOSE 8080
-ENV SCRIPTS_HOME=/app/scripts \
-    XRAY_HOME=/app/xray \
-    SPRING_PROFILES_ACTIVE=prod
-
-ENTRYPOINT ["/app/pohr"]
-```
-
-**`docker-compose.prod.yml`:**
-```yaml
-services:
-  pohr:
-    image: roclh/pohr:latest
-    ports:
-      - "8080:8080"
-    volumes:
-      - pohr-data:/app/data
-      - pohr-xray:/app/xray
-      - pohr-scripts:/app/scripts
-    environment:
-      - SPRING_PROFILES_ACTIVE=prod
-      - POHR_PUBLIC_URL=${POHR_PUBLIC_URL}
-      - POHR_SSH_AUTHORIZED_KEYS=${POHR_SSH_AUTHORIZED_KEYS}
-      - XRAY_AUTO_INSTALL=false
-    restart: unless-stopped
-volumes:
-  pohr-data:
-  pohr-xray:
-  pohr-scripts:
-```
-
-**`install.sh` для RU-моста** (в репо, не в образе):
-- Проверка docker + docker-compose.
-- Создать `.env` со сгенерированными паролями.
-- `docker compose -f docker-compose.prod.yml up -d`.
-
-**`POHR_SSH_AUTHORIZED_KEYS`** — multiline env var. В `application-prod.yml`: `pohr.ssh.authorized-keys: ${POHR_SSH_AUTHORIZED_KEYS:}`.
-
-#### Открытые вопросы по EU-нодам
-
-1. **Healthcheck inbound на RU.** Отдельный SOCKS на `127.0.0.1:10808` — лишний inbound в конфиге. Альтернатива — gRPC stats. Для MVP — SOCKS.
-2. **Переключение между несколькими EU.** Схема заложена под N нод, но `XrayConfigMaterializer` берёт **первую HEALTHY** по `enrolledAt DESC`. Приоритезация по `priority` — позже.
-3. **Удаление EU-ноды с активными соединениями.** При `DELETE` — RU рематериализует конфиг без EU, перезапускает Xray. Юзеры теряют VPN на 1-2 сек.
-4. **nodeSecret rotation.** Пока не делаем. При подозрении — re-enroll.
-5. **Мониторинг «просроченных» enroll-токенов.** `@Scheduled` чистит `enrollment_tokens` где `expires_at < now()` и `used_at IS NULL`.
-6. **SSH keys — где хранить?** MVP — env var `POHR_SSH_AUTHORIZED_KEYS`. Позже — таблица `ssh_keys` с CRUD UI.
-
-#### Порядок реализации
-
-1 → 2 → 3 → 4 → 5 → 6. UI (шаг 5) можно параллельно с 3-4, API уже стабилен. Docker (шаг 6) — в самом конце.
-
-**Проверка на каждом шаге:**
-- После шага 3 — `curl | bash` на реальном EU-VPS, `/etc/xray/config.json` создан, Xray запущен, RU видит ноду.
-- После шага 4 — `pohr-agent` в cron обновляет health, `TunnelHealthCheckService` пишет `last_tunnel_ip` == EU-IP.
-
----
-
-### Приоритет 1: добить процесс Xray
-
-- [ ] **Проверка порта перед `pb.start()`** — если порт из активного конфига занят чужим процессом, падать с понятным сообщением, а не `bind: address already in use`.
-- [ ] **Автоматический рестарт Xray** при активации конфига. Опциональный чекбокс «apply immediately» в форме редактирования конфига.
-- [ ] **`api inbound` + `stats` в дефолтном конфиге** — подготовка к gRPC и подсчёту трафика.
-
-### Приоритет 2: клиентские установщики — надёжность
-
-- [ ] **Детект версии v2rayN по структуре конфига** (`CoreBasicItem` есть → v7.x; иначе v6.x и ниже).
-- [ ] **Проверка запуска v2rayN после правки.** Скрипт запускает процесс, ждёт 5 сек, проверяет `Get-Process v2rayN`. Если упал — автоматически восстанавливает из pristine.
-- [ ] **Параметр `-Fragment on|off|keep`.** По умолчанию `on`. Некоторым провайдерам фрагмент мешает.
-- [ ] **Идемпотентный рестарт**: если конфиг содержит ту же подписку с тем же URL, не перезаписывать.
-- [ ] **Список изменений в конфиге для пользователя.** Перед `Start-Process` выводить: что включили, куда положили бэкап.
-- [ ] **Отдельная диагностическая команда.** `.\v2rayn-setup.ps1 -Diagnose` — показывает найденные пути, состояние фрагмента и подписки, не правит конфиг.
-
-### Приоритет 3: клиентские установщики — расширение
-
-- [ ] **DNS-настройки в v2rayN.** `SimpleDNSItem`: `RemoteDNS=https://cloudflare-dns.com/dns-query`, `DirectDNS`, `BootstrapDNS`, `BlockAAAAQuery`.
+- [ ] **DNS-настройки в v2rayN.** `SimpleDNSItem`: `RemoteDNS=https://cloudflare-dns.com/dns-query`, `DirectDNS=119.29.29.29`, `BlockAAAAQuery`.
 - [ ] **TUN-режим.** `TunModeItem.EnableTun`, `Stack=gvisor`.
 - [ ] **Системный прокси.** `SystemProxyItem.SysProxyType`, `SystemProxyExceptions`.
-- [ ] **Routing rules из БД** (см. Приоритет 5). После появления — подключать подписку на правила.
-- [ ] **«Готовый ZIP»** с уже настроенным v2rayN как альтернатива `.bat`.
+- [ ] **Routing rules из БД** — несколько профилей («ru-direct», «ru-blocked-only», «whitelist»). Сейчас хардкод в `RoutingRulesController`.
+- [ ] **«Готовый ZIP»** с преднастроенным v2rayN как альтернатива `.bat`.
 
-### Приоритет 4: мобильные клиенты
+### Приоритет 5: мобильные клиенты
 
-- [ ] **Android — Happ.** `happ://add/{SUB_URL}` для подписки + отдача JSON с routing-правилами по отдельному endpoint. Прямое редактирование настроек невозможно без рута.
-- [ ] **Android — v2rayNG.** `v2rayng://install-sub/?url={SUB_URL}`. Direct-edit не поддерживается.
-- [ ] **iOS — Streisand / Karing / Shadowrocket.** Deep-link схемы: `streisand://import/URL#NAME`, `karing://install-config?url=URL&name=NAME`, `sub://URL`. Для Karing — отдавать `.yaml`/`.json` с правилами; для Shadowrocket — `.conf` (Clash-формат).
-- [ ] **QR-код на `/home`.** Генерировать `vless://` в QR-картинку. Библиотека — ZXing или QRose.
-- [ ] **Страница `/setup`** — пошаговая инструкция с deep-link кнопками для каждой платформы.
-
-### Приоритет 5: маршрутизация и правила
-
-- [ ] **Routing rules в БД** — по аналогии с `xray_configs`. Несколько профилей («ru-direct», «ru-blocked-only», «whitelist»). Сейчас хардкод в `RoutingRulesController`.
-- [ ] **Routing subscription URL в v2rayN.** После появления БД — подключить как `RoutingBasicItem.RoutingIndexId` (точное имя поля уточнить экспериментально).
-- [ ] **Готовые routing-профили для Happ и Karing** — отдавать по `/sub/{token}/routing.json` в формате каждого клиента.
+- [ ] **Android — Happ.** `happ://add/{SUB_URL}` + отдача JSON с routing-правилами.
+- [ ] **Android — v2rayNG.** `v2rayng://install-sub/?url={SUB_URL}`.
+- [ ] **iOS — Streisand / Karing / Shadowrocket.** Deep-link схемы: `streisand://import/URL#NAME`, `karing://install-config?url=URL&name=NAME`, `sub://URL`.
+- [ ] **QR-код на `/home`.** Генерация `vless://` в QR (ZXing).
+- [ ] **Страница `/setup`** — deep-link кнопки по платформам.
 
 ### Приоритет 6: масштабирование
 
-- [ ] **gRPC API Xray.** Вместо перезапуска процесса — `HandlerService.AlterInbound` с `AddUserOperation` / `RemoveUserOperation`. Мгновенное добавление пользователей без обрыва соединений.
-- [ ] **Health-check endpoint'ов.** `/api/health` расширить: статус EU-узлов, состояние Xray.
-- [ ] **Ping/health-check активного EU-узла** — с `/admin/xray` проверять, отвечает ли `pbk`/порт с публичного адреса.
+- [ ] **gRPC API Xray.** `HandlerService.AlterInbound` с `AddUserOperation`/`RemoveUserOperation` — добавление юзеров без рестарта Xray.
+- [ ] **Множественные EU-узлы.** Приоритеты, health-check, автоматическое переключение. Сейчас materializer берёт **первую HEALTHY**, при падении активной все юзеры ложатся.
+- [ ] **Fallback на freedom при UNREACHABLE EU.** Сейчас EU-outbound всегда. Правильно: если EU недоступна — direct (geoip:ru). Требует динамического роутинга.
+- [ ] **Health-check endpoint'ов `/api/health`** — статус EU-узлов, состояние Xray.
 
-### Приоритет 7: развёртывание
+### Приоритет 7: UX
 
-- [ ] **`install.sh` для RU-моста.** Скачивает Docker-образ, генерирует секреты, запускает контейнер.
-- [ ] **Self-steal маскировка.** Nginx с сайтом-заглушкой на `127.0.0.1:8443`, Xray `dest` туда же.
-- [ ] **Зеркало GitHub.** Кэширование релизов Xray на RU-мосте для обхода блокировок.
-
-### Приоритет 8: UX и удобство
-
-- [ ] **Telegram-бот.** Команды `/start`, `/config`, `/qr`, `/status`. Push при обновлении клиентского скрипта.
-- [ ] **Версионирование клиентского конфига.** Хранить в БД `client_config_version`, инкрементировать при изменениях фрагмента/routing. Триггер для TG-пуша.
-- [ ] **Смена пароля через UI.** Пользователь меняет свой пароль на `/home`.
-- [ ] **Диагностика.** Страница `/status` для пользователя: активен ли EU-узел, когда обновлялась подписка.
+- [ ] **Telegram-бот.** `/start`, `/config`, `/qr`, `/status`. Push при обновлении клиентского скрипта.
+- [ ] **Смена пароля через UI** (пока только через SQL).
 - [ ] **Даты в UI** — обрезать наносекунды (`2026-10-01T14:31:05`).
+- [ ] **Страница `/status`** для пользователя: активен ли EU-узел, когда обновлялась подписка.
 
-### Приоритет 9: безопасность и приватность
+### Приоритет 8: безопасность
 
 - [ ] **Self-registration с invite-токенами.**
-- [ ] **Лимиты трафика и скорости.**
+- [ ] **Лимиты трафика и скорости** (через Xray stats API или nftables).
 - [ ] **Аудит действий.**
 - [ ] **Rate limiting** на `/sub/{token}`.
+- [ ] **`nodeSecret` ротация** раз в 30 дней.
+- [ ] **Публичный `/api/health`** сейчас permitAll — сузить до минимума информации.
 
-### Приоритет 10: высший пилотаж
+### Приоритет 9: высший пилотаж
 
-- [ ] **GitHub-коммит скриптов из UI.** Кнопка «Push to GitHub» в форме редактирования скрипта. Через GitHub API: создать branch, закоммитить файл, открыть PR. Требует fine-grained PAT в env.
-- [ ] **Синхронизация скриптов между инстансами Pohr.** Экспорт/импорт скриптов через API.
+- [ ] **GitHub-коммит скриптов из UI.** Кнопка «Push to GitHub» → branch + PR.
+- [ ] **Синхронизация скриптов между инстансами Pohr.**
 
----
+### Общее — native image
+
+- [ ] **Все temporal-поля в DTO для UI — строки, не `Instant`.** Форматировать на бэкенде. Устраняет целый класс reflection-ошибок (см. грабли 65).
+- [ ] **Все UUID в DTO — строки.** То же.
+- [ ] **Прогнать все страницы приложения подряд с `bash curl` для smoke-теста.** Сейчас часто ломается что-то в неочевидном месте.
 
 ## 🛠️ Технический стек
 
@@ -748,24 +417,108 @@ volumes:
 41. **`jq` может отсутствовать на чистом Debian/Ubuntu.** Устанавливать в bootstrap'е (`apt-get install -y jq` с `DEBIAN_FRONTEND=noninteractive`).
 42. **EU за NAT.** Если EU-VPS за NAT, `curl api.ipify.org` вернёт публичный IP, но входящие соединения могут не доходить. Для MVP считаем, что у EU есть публичный IP.
 43. **`systemctl restart xray` рвёт активные соединения.** При обновлении конфига через agent — предупреждать пользователей (в /home и в TG), но не блокировать.
+44. **Docker Desktop: WSL-дистрибутив `docker-desktop` может отсутствовать.** Диагностика показывает `WSL Distribution docker-desktop is missing`. Решение: сброс через Troubleshoot → Reset to factory defaults; если reset падает (`failed to clean up distro Debian`) — `wsl --unregister docker-desktop` вручную, потом Reset.
+
+45. **`wsl --update` код 1618 (`ERROR_INSTALL_ALREADY_RUNNING`).** Windows Installer считает, что другая установка идёт. Решение: перезагрузка, или `net stop msiserver && net start msiserver`, или `wsl --update --web-download`.
+
+46. **`get.docker.com` отказывается ставить Docker на EOL-дистрибутивы (Debian 11).** Решение: ручная установка через `download.docker.com/linux/debian` (поддерживает bullseye), или static binary из `download.docker.com/linux/static/stable/x86_64/` (`docker-27.3.1.tgz` + systemd unit).
+
+47. **Docker на маленьком VPS (20 ГБ) забивает диск распаковкой образа.** Наш образ ~170 МБ сжатый = 665 МБ на диске после `docker pull`. Обязательно `/etc/docker/daemon.json` с `max-size: 10m`, `max-file: 3`.
+
+48. **Native image не включает нестандартные Charset'ы.** `Charset.forName("Cp866")` падает с `UnsupportedCharsetException`. Решение: `-H:+AddAllCharsets` в `buildArgs`. **Не пытаться регистрировать charsets точечно через `registerTypeIfPresent` — не работает (классы `sun.nio.cs.ext.*` отсутствуют в community JDK).**
+
+49. **`get.docker.com` EOL-проверка — на Debian 11 не работает.** Решение: ручная установка Docker.
+
+50. **`/var/log/xray` без ротации может занять весь диск.** У legacy Xray `access.log` и `error.log` пишутся без ограничения. На 20 ГБ VPS за пару лет легко достигает 15 ГБ. **Всегда** настраивать logrotate: `/etc/logrotate.d/xray` с `daily`, `rotate 7`, `maxsize 100M`, `copytruncate`.
+
+51. **systemd-journal тоже не имеет лимита.** `/var/log/journal` может вырасти до гигабайт. Ограничивать через `/etc/systemd/journald.conf.d/size.conf`: `SystemMaxUse=200M`, `MaxRetentionSec=2week`.
+
+52. **Debian 11 EOL — security-репы удалены, но есть `archive.debian.org`.** `security.debian.org` возвращает 404 на все пакеты. Решение: заменить `sources.list` на `archive.debian.org/debian` и `archive.debian.org/debian-security`, отключить `Acquire::Check-Valid-Until "false"`.
+
+53. **`Stream.toList()` возвращает immutable list → SpEL reflection падает в native image.** `java.util.ImmutableCollections$ListN` не зарегистрирован. Шаблоны `th:if="${list.isEmpty()}"` падают с `Method 'isEmpty' cannot be found`. **Решения:**
+    - Заворачивать в `new ArrayList<>(...)` перед передачей в модель.
+    - В шаблонах использовать `#lists.isEmpty(x)` вместо `x.isEmpty()`.
+    - `MemberCategory.INVOKE_PUBLIC_METHODS` для `org.thymeleaf.expression.Lists`.
+
+54. **`java.time.Instant.toString()` требует reflection-регистрации в native image.** Любое `${obj.instant().toString()}` падает с `MissingReflectionRegistrationError`. **Правильное решение: в DTO передавать строки, не `Instant`.** Тогда reflection для java.time в шаблонах не нужен. `MemberCategory.values()` для `java.time.Instant` работает, но не надёжно (`registerTypeIfPresent` для JDK-классов иногда не срабатывает — использовать прямые ссылки `registerType(Instant.class, ...)`).
+
+55. **Thymeleaf expression objects (`#strings`, `#numbers`, `#lists`, ...) требуют reflection-регистрации в native image.** Все 13 классов `org.thymeleaf.expression.*` с `MemberCategory.INVOKE_PUBLIC_METHODS`.
+
+56. **Любой DTO, рендерящийся в шаблоне, требует `MemberCategory.values()` в NativeHints.** Иначе SpEL не найдёт методы (`Method username() cannot be found on type SubscriptionDto`).
+
+57. **`${obj.someString().toLowerCase()}` в Thymeleaf-шаблоне — тоже reflection.** Если на `someString()` вернётся не String, а что-то другое — падение. Использовать `#strings.toLowerCase(obj.someString())`.
+
+58. **`xray version | head -1` с `set -o pipefail` может упасть с SIGPIPE.** `head` читает первую строку и закрывает пайп → `xray version` получает SIGPIPE (exit 141) → `set -e` убивает весь скрипт молча. **Решение:** `cmd 2>/dev/null | head -1 || true`, или `set +o pipefail` перед таким вызовом, или через промежуточную переменную.
+
+59. **Bash `set -e` без trap убивает скрипт без сообщения.** Если bootstrap падает молча — запускать `bash -x` для трассировки, или добавить `trap 'echo "FAILED at line $LINENO"' ERR`.
+
+60. **CRLF в `.sh` ломает bash.** `set -euo pipefail\r` парсится как `set -euo pipefail<CR>`, bash падает с `invalid option namepefail`. Проверка: `cat -A file.sh | head -3` — должно быть `$`, не `^M$`. **Решение:** `sed -i 's/\r$//' file.sh` или `dos2unix`. **Профилактика:** нормализовать line endings в `ClientScriptService.write()` по расширению: `.sh` → LF, `.bat`/`.cmd`/`.ps1` → CRLF. Плюс `.gitattributes` в репо.
+
+61. **Xray требует `geosite.dat` и `geoip.dat` для правил `geosite:*`/`geoip:*`.** Если файлов нет — Xray **полностью падает** при старте с `failed to load geosite: CATEGORY-RU`, а не игнорирует правило. **Решение:** скачивать в volume при первом старте (`XrayAutoInstaller`) или вшивать в образ. Скачивать из `https://github.com/Loyalsoldier/v2ray-rules-dat/releases/latest/download/`.
+
+62. **Materializer берёт только HEALTHY/DEGRADED ноды → замкнутый круг при падении Xray.** Если Xray падает (из-за отсутствия geosite.dat), healthcheck ставит UNREACHABLE, и materializer на следующем restart не добавляет EU-outbound → Xray стартует без EU → туннель не работает → UNREACHABLE. **Решение:** брать `findFirst()` из всех нод, любой статус.
+
+63. **Xray на нестандартном порту (8443) палит VPN.** Reality маскируется под обычный HTTPS на 443. Если Xray на 8443 — DPI видит нестыковку. `xray` сам пишет `WARNING: REALITY: Listening on non-443 ports may get your IP blocked by the GFW`. **Решение:** SNI-мультиплексирование (Nginx stream с `ssl_preread`, HAProxy, или Caddy layer4). Один порт 443, прокси смотрит SNI, роутит на Xray или Caddy.
+
+64. **Let's Encrypt логирует все сертификаты в `crt.sh`.** Если хочешь скрыть домен от DPI/РКН — DNS-01 challenge, wildcard, или не публиковать UI вообще (SSH-туннель к localhost). Для персонального использования — не критично.
+
+65. **`WebController.home` собирает URL подписки из `request.getServerPort()`, `request.getScheme()` — это внутренние значения (8080, http), а не публичные.** За Caddy выходит `http://pohr-roclh.xyz:80/sub/...`. **Решение:** читать `X-Forwarded-Proto` и `X-Forwarded-Host`, или использовать `POHR_PUBLIC_URL` из конфига как приоритет.
+
+66. **`XrayConfigService.parseLinks` должен фильтровать по UUID подписки.** Иначе каждая подписка получает ссылки на **все** UUID из конфига (включая чужие) — клиент путается и половину отбрасывает. UUID для ссылки берётся из `subscription.getXrayUuid()`. Inbound пропускается, если UUID не найден в `clients[]`.
+
+67. **Jq может отсутствовать на чистом Debian.** `apt-get install -y jq` на EOL-системах может падать с 404. Решение: static binary с `github.com/stedolan/jq/releases` или через archive.debian.org.
+
+68. **`nft` вместо `iptables` на свежих системах.** Debian 12+ и минимальные LXC иногда не имеют iptables. Проверять `which nft ufw firewall-cmd iptables`. Для nft: `nft add table inet filter` + chain + rules. **Порт SSH может быть нестандартным** (`grep Port /etc/ssh/sshd_config`) — не открывать по-умолчанию 22.
+
+69. **Порт SSH может быть нестандартным.** На EU-сервере SSH на 6155, не на 22. Всегда проверять `ss -tlnp | grep sshd` перед настройкой файрвола.
+
+70. **Редактор скриптов в UI сохраняет CRLF как есть.** `ClientScriptService.write()` не нормализует line endings. Правка `.sh` через UI ломает скрипт. **Решение:** нормализация по расширению в `write()` + `.gitattributes`.
+71. **`ARG` не наследуется между стадиями Dockerfile.** `ARG APP_HOME=/app` в стадии `builder` невидим в `stage-1` — `COPY --from=builder ${APP_HOME}/...` разворачивается в пустую строку и даёт `UndefinedVar: Usage of undefined variable '$APP_HOME'`. **Решение:** либо захардкодить путь, либо объявить `ARG APP_HOME=/app` повторно в целевой стадии.
+
+72. **Gradle в Docker скачивает wrapper и зависимости при каждой сборке.** Проброс `~/.gradle` с хоста — плохо (платформо-зависимо, пухнет контекст). **Решение:** BuildKit cache mounts:
+Требует BuildKit (Docker 23+; в Docker Desktop включён).
+
+73. **COPY --from=builder с путём, содержащим пробелы/нестандартные символы.** Старый Dockerfile содержал /build/build/native/nativeCompile/pohr — путь, не совпадающий с WORKDIR builder'а. Проверять: docker buildx build --target builder --load -t pohr-builder . && docker run --rm --entrypoint ls pohr-builder -la /app/build/native/nativeCompile/.
+XrayAutoInstaller при XRAY_VERSION=latest форсит реинстал при каждом старте контейнера. Ручной апдейт через UI сбрасывается. Решение: ставить только если !installer.isInstalled() или XRAY_VERSION задан явно (не пустой, не latest) и отличается от установленной. Иначе — no-op.
+
+74. explicitVersion.equals(...) — компиляционная ошибка. explicitVersion — boolean, а не строка. Проверять version.equals(installer.installedVersion()), а explicitVersion использовать только как флаг.
+
+75. Xray-процесс не видит новых клиентов после создания подписки. SubscriptionService.getOrCreate пишет xrayUuid в БД, но materialize() не вызывается до ближайшего start()/restart(). Свежесозданный UUID не попадает в clients[] в файле Xray → VLESS-handshake отбрасывается с EOF в клиентских логах. Решение: в WebController.home после getOrCreate — if (!existed) { materializer.materialize(); processManager.restart(); }. Аналогично в AdminSubscriptionController.create.
+
+76. Синхронизация версии Xray EU→RU — только через header, не через GitHub API. Агент на EU не должен вызывать https://api.github.com/... (rate-limit, рассинхрон с RU). RU отдаёт свою установленную версию в X-Pohr-Xray-Version — EU выравнивается на неё.
+
+77. xhttp + Reality несовместим между разными версиями Xray. Клиент 26.9.30 ↔ сервер 26.3.27 даёт Post "https://dns.google/dns-query": EOF и delay -1 ms. XHTTP менялся между этими релизами. Правило: версия Xray на клиенте, RU и EU должна совпадать. Синхронизация — автоматическая через pohr-agent.sh.
+
+78. sniffing.destOverride в inbound на xhttp может ломать handshake. Если после апдейта Xray ничего не помогло — убрать sniffing из inbound, попробовать mode: auto вместо stream-up, убрать scMaxConcurrentPosts.
+
+79. Caddy на 443 → server.forward-headers-strategy: framework обязателен, иначе URL подписки — http://host:80/sub/.... Spring MVC по умолчанию читает scheme/host/port из ServletRequest (внутренние 8080/http), а не из X-Forwarded-*.
+
+80. EU_XRAY_VERSION в .env теперь конфликтует с ручным апдейтом на RU. Если задан XRAY_VERSION=26.9.30 в .env — RU форсит пин при каждом старте, EU подтянет ту же. Если хочется управлять версией только через UI — не задавать XRAY_VERSION / оставить latest.
+
+81. При синхронизации версии: не откатывать EU до старой версии, если на RU временно устаревшая. В pohr-agent.sh при mismatch всегда тянет версию с RU — даже если она старше. Правильно для MVP (выравнивание), но при откате на RU EU тоже откатится. Для защиты от отката — guard в update_xray() (сравнивать semver и не откатываться).
+
 
 ---
 
 ## 📋 Открытые вопросы
 
-1. **gRPC API Xray** — до или после EU-нод. Если до — `AlterInbound` упростит ротацию `clients[]` при добавлении EU. Если после — при enroll EU придётся рестартить Xray на RU. Склоняюсь к «после EU».
-2. **`XRAY_HOST` для подписок после EU.** После EU-схемы — **всё равно RU-host** (клиент → RU → EU). Убедиться, что `XrayConfigService.buildVlessLinks` не подхватит EU-host.
-3. **Ротация subscription-токенов.** Ручная (delete + create) или автоматическая раз в N дней?
-4. **Мультитенантность.** Один админ или несколько?
-5. **PostgreSQL как альтернатива SQLite** — для больших нагрузок.
-6. **Стратегия сокрытия.** Простая (self-steal) или радикальная (SSH-инверсия RU → EU)?
-7. **Routing rules из БД** — делать сейчас или отложить до мобильных клиентов?
-8. **Единый формат клиентских конфигов.** Ввести «абстрактный» клиентский профиль в БД (JSON с фрагментом/DNS/routing), из которого каждый установщик рендерит свой формат? Или per-client скрипты отдельно? Склоняюсь к первому.
-9. **Обновление клиентских скриптов у пользователей.** Как уведомить: TG-бот, email, или баннер на `/home`?
-10. **Android без рута** — принимаем ограничение (только подписка + deep-link), или пробуем через ADB (нереалистично)?
-11. **Если EU-нода становится UNREACHABLE с активными юзерами.** Сейчас — трафик просто ляжет. Хочется fallback на freedom+geoip:ru direct. Позже.
-12. **Backup приватного ключа EU.** Если VPS сгорит, `privateKey` потерян → re-enroll. Автоматизация не нужна, но в UI ноды — напоминание «бэкап /etc/xray/private.key».
-13. **Срок жизни `nodeSecret`.** Пока бессрочный. Идея: ротировать раз в 30 дней автоматически через `/rotate-tunnel`.
+1. **SNI-мультиплексирование** — Nginx stream или Caddy layer4? Nginx уже установлен, но не используется. Проще Nginx stream.
+3. **Fallback на freedom при UNREACHABLE EU.** Сейчас все клиенты ложатся. Динамический роутинг — задача.
+4. **gRPC Xray** — до или после мобильных клиентов? Если после EU — при добавлении юзера нужен рестарт.
+5. **Rebuild на Debian 12** — когда? Каждая новая установка пакета = грабли.
+6. **Routing rules из БД** — делать или хардкод в коде хватит?
+7. **Единый формат клиентских конфигов** — абстрактный профиль в БД или per-client скрипты?
+8. **Обновление клиентских скриптов у пользователей** — как уведомить? TG-бот, email, баннер на `/home`?
+9. **Android без рута** — только подписка + deep-link, или ADB (нереалистично)?
+10. **Мультитенантность** — один админ или несколько?
+11. **PostgreSQL** — когда нужен, при каком размере?
+12. **Ротация subscription-токенов** — ручная или авто раз в N дней?
+13. **`nodeSecret` ротация** — раз в 30 дней автоматически?
+14. **Backup приватного ключа EU** — напоминание в UI ноды, или автобэкап на RU?
+15. **Xray на не-443 порту** — срочно делать SNI-mux или отложить?
+16. Ротация Xray версий. Сейчас EU выравнивается на RU автоматом. Что если новая версия на RU сломает xhttp, а откат уже сделали на EU? Нужен ли guard semver в update_xray()?
+17. Материализация при getOrCreate подписки. Сейчас требует restart Xray процесс. gRPC AlterInbound снимет это ограничение.
+18. sniffing в RU-inbound — оставить или убрать? Помогает для routing по домену, но может мешать на xhttp.
 
 ---
 
@@ -774,13 +527,22 @@ volumes:
 Привет. Продолжаем разработку **Pohr** — системы управления VPN-инфраструктурой для обхода блокировок РКН.
 
 Текущий статус (см. полный контекст ниже):
-- Сделано: Xray-конфиги в БД + материализация, per-user UUID, xhttp+Reality, редактор конфигов, клиентские скрипты в volume с seed'ом из бандла, рабочий v2rayN-установщик (фрагмент, per-user подписка, pristine-бэкапы, `-Restore`).
-- В работе (P0): EU-ноды — enrollment API, bootstrap-скрипт, polling+health, admin UI, fat Docker image.
-- Предстоит: EU-ноды (шаги 1-6), надёжность v2rayn-setup, расширение настроек клиента (DNS, TUN, routing), мобильные клиенты (Happ/v2rayNG/Streisand/Karing/Shadowrocket), routing rules в БД, gRPC Xray.
+Сделано: Xray-конфиги в БД + материализация, per-user UUID, xhttp+Reality, редактор конфигов, клиентские скрипты в volume с seed'ом из бандла, рабочий v2rayN-установщик (фрагмент, per-user подписка, pristine-бэкапы, -Restore).
 
+Сделано: EU-ноды — enrollment API, bootstrap-скрипт, polling+health, admin UI, fat Docker image, автоматическая синхронизация версии Xray RU→EU.
+
+Сделано: HTTPS через Caddy, PublicUrlResolver, forward-headers, download geosite/geoip, materializer fallback на UNREACHABLE.
+
+Работает end-to-end: клиент → RU-мост → EU-узел → интернет через Reality (TCP/xhttp).
+
+Предстоит (P0): материализация при создании подписки, SNI-мультиплексирование (Nginx stream + ssl_preread, Xray на 443, Caddy на 8444).
+
+Предстоит: rebuild на Debian 12, gRPC Xray, мобильные клиенты (Happ/v2rayNG/Streisand/Karing/Shadowrocket), routing rules в БД, TG-бот.
 Стек: Java 25 + Spring Boot 4.0.8 + GraalVM Native + SQLite + Liquibase + Thymeleaf + Spring Security + Xray-core.
 
 Правила: DTO — record в `model/dto`, сущности в `model`, Liquibase через SQL-миграции, `ddl-auto: validate`, id — UUID, время — `Instant` через `InstantStringConverter`, **Xray-конфиг в БД, файл — материализация**, **клиентские скрипты в volume с seed'ом из бандла, редактор в UI**, **EU-ноды — pull-модель, EU генерит свои ключи локально, RU видит только publicKey**.
+Версия Xray синхронизируется RU→EU автоматом. Если правишь версию через UI — EU подтянет на следующем поллинге (≤5 мин). Ручное изменение версии на EU бессмысленно — будет перезаписано. Для точечного апгрейда используй UI на RU.
+Логи пишутся в файл через XrayProcessManager; WebSocket broadcast — только для UI. Никаких прямых записей в /app/xray/*.log.
 
 Следующий шаг: [что делаем].
 

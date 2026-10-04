@@ -4,6 +4,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 import org.Roclh.model.Subscription;
 import org.Roclh.model.User;
+import org.Roclh.service.PublicUrlResolver;
 import org.Roclh.service.SubscriptionService;
 import org.Roclh.service.UserService;
 import org.springframework.security.core.Authentication;
@@ -12,12 +13,17 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
+import java.util.Base64;
+
 @Controller
 @RequiredArgsConstructor
 public class WebController {
 
     private final UserService userService;
     private final SubscriptionService subscriptionService;
+    private final PublicUrlResolver publicUrlResolver;
 
     @GetMapping("/")
     public String root() {
@@ -36,15 +42,24 @@ public class WebController {
         User user = userService.findByUsername(authentication.getName()).orElse(null);
         if (user != null) {
             Subscription sub = subscriptionService.getOrCreate(user.getId());
-            String host = request.getServerName();
-            if ("localhost".equalsIgnoreCase(host) || "::1".equals(host)) {
-                host = "127.0.0.1";
-            }
-            int port = request.getServerPort();
-            String url = "http://" + host + ":" + port + "/sub/" + sub.getToken();
-            model.addAttribute("subscriptionUrl", url);
+            String base = publicUrlResolver.resolve(request);
+            String subUrl = base + "/sub/" + sub.getToken();
+
+            model.addAttribute("subscriptionUrl", subUrl);
             model.addAttribute("subscriptionEnabled", sub.isEnabled());
             model.addAttribute("subscriptionToken", sub.getToken());
+
+            String encoded = URLEncoder.encode(subUrl, StandardCharsets.UTF_8)
+                    .replace("+", "%20");
+            model.addAttribute("happLink",         "happ://add/" + encoded);
+            String encodedNg = Base64.getUrlEncoder().withoutPadding()
+                    .encodeToString(subUrl.getBytes(StandardCharsets.UTF_8));
+            model.addAttribute("v2rayNgLink",      "v2rayng://install-sub?url=" + encodedNg + "&name=Pohr");
+            model.addAttribute("streisandLink",    "streisand://import/" + encoded);
+            model.addAttribute("karingLink",       "karing://install-config?url=" + encoded);
+            String b64 = Base64.getUrlEncoder().withoutPadding()
+                    .encodeToString(subUrl.getBytes(StandardCharsets.UTF_8));
+            model.addAttribute("shadowrocketLink", "sub://" + b64);
         }
         return "home";
     }

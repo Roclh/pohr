@@ -90,7 +90,6 @@ public class EuConfigService {
         ObjectNode user = v.putArray("users").addObject();
         user.put("id", node.getTunnelUuid().toString());
         user.put("encryption", "none");
-        user.put("flow", "xtls-rprx-vision");
 
         ObjectNode stream = ob.putObject("streamSettings");
         stream.put("network", "tcp");

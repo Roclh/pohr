@@ -16,7 +16,7 @@
         <a class="link" th:href="@{/admin}" th:text="#{common.back}">Back</a>
     </div>
 
-    <table class="table" th:if="${!subscriptions.isEmpty()}">
+    <table class="table" th:if="${!#lists.isEmpty(subscriptions)}">
         <thead>
         <tr>
             <th th:text="#{subscription.list.username}">User</th>
@@ -60,7 +60,7 @@
         </tbody>
     </table>
 
-    <p th:if="${subscriptions.isEmpty()}" class="muted" th:text="#{subscription.list.empty}">No subscriptions yet</p>
+    <p th:if="${#lists.isEmpty(subscriptions)}" class="muted" th:text="#{subscription.list.empty}">No subscriptions yet</p>
 </main>
 
 <script>

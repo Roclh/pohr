@@ -32,6 +32,9 @@ public class XrayConfigService {
     @Value("${xray.server.host:127.0.0.1}")
     private String publicHost;
 
+    @Value("${xray.server.public-port:443}")
+    private int publicPort;
+
     @Value("${xray.reality.dest:www.microsoft.com:443}")
     private String defaultDest;
 
@@ -90,13 +93,33 @@ public class XrayConfigService {
         if (repository.existsByName(name)) {
             throw new IllegalArgumentException("Config with name '" + name + "' already exists");
         }
+        String resolvedKey = resolveRealityPublicKey(content, realityPublicKey);
         return repository.save(XrayConfig.builder()
                 .name(name)
                 .description(description)
                 .content(content)
-                .realityPublicKey(blankToNull(realityPublicKey))
+                .realityPublicKey(resolvedKey)
                 .active(false)
                 .build());
+    }
+
+    private String resolveRealityPublicKey(String content, String provided) {
+        if (provided != null && !provided.isBlank()) {
+            return provided;
+        }
+        try {
+            JsonNode root = objectMapper.readTree(content);
+            String priv = extractRealityPrivateKey(root);
+            if (priv == null || priv.isBlank()) {
+                return null;
+            }
+            XrayRealityService.KeyPair kp = realityService.deriveKeyPair(priv);
+            log.info("Derived reality public key from privateKey in content");
+            return kp.publicKey();
+        } catch (Exception e) {
+            log.warn("Failed to derive reality public key: {}", e.getMessage());
+            return null;
+        }
     }
 
     @Transactional
@@ -182,7 +205,6 @@ public class XrayConfigService {
         List<String> result = new ArrayList<>();
         for (JsonNode inbound : root.path("inbounds")) {
             if (!"vless".equals(inbound.path("protocol").asString())) continue;
-
             int port = inbound.path("port").asInt();
             JsonNode stream = inbound.path("streamSettings");
             String network = stream.path("network").asString("tcp");
@@ -205,7 +227,7 @@ public class XrayConfigService {
 
             StringBuilder link = new StringBuilder("vless://")
                     .append(uuid).append("@")
-                    .append(publicHost).append(":").append(port)
+                    .append(publicHost).append(":").append(publicPort)
                     .append("?type=").append(network)
                     .append("&encryption=none");
 
@@ -233,7 +255,11 @@ public class XrayConfigService {
             } else {
                 link.append("&security=none");
             }
+            if (isReality && pubKey.isBlank()) {
+                log.warn("Reality public key missing for inbound on port {} — vless link will be unusable", port);
+            }
 
+            link.append("&fm=");
             link.append("#Pohr");
             result.add(link.toString());
         }

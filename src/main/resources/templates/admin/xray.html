@@ -66,7 +66,7 @@
         <h2 th:text="#{admin.xray.logs}">Recent logs</h2>
         <pre class="logs" id="logs"
              th:data-initial="${#strings.listJoin(recentLogs, '\n')}"></pre>
-        <p th:if="${recentLogs.isEmpty()}" class="muted" th:text="#{admin.xray.logs.empty}">No logs yet</p>
+        <p th:if="${#lists.isEmpty(recentLogs)}" class="muted" th:text="#{admin.xray.logs.empty}">No logs yet</p>
     </section>
 
     <script>

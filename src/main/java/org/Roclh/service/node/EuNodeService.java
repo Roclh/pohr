@@ -52,10 +52,13 @@ public class EuNodeService {
         return nodeRepository.existsByName(name);
     }
 
-    /** Ноды в статусе HEALTHY или DEGRADED — кандидаты для активного EU-outbound. */
-    public List<EuNode> findActive() {
-        return nodeRepository.findByStatusInOrderByEnrolledAtDesc(
-                List.of(NodeStatus.HEALTHY, NodeStatus.DEGRADED));
+    /**
+     * Все ноды — кандидаты для EU-outbound. Даже UNREACHABLE берём в конфиг:
+     * иначе получаем замкнутый круг «Xray упал → нет outbound → не поднялся».
+     * Healthcheck потом переведёт в HEALTHY, если туннель заработает.
+     */
+    public List<EuNode> findCandidates() {
+        return nodeRepository.findAll(Sort.by(Sort.Direction.DESC, "enrolledAt"));
     }
 
     public Optional<EuNode> findByNodeSecret(UUID id, String secret) {

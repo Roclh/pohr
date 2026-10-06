@@ -3,13 +3,19 @@ package org.Roclh.controller.admin;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.Roclh.model.TelegramProxyConfig;
+import org.Roclh.model.TelegramProxyUser;
+import org.Roclh.model.dto.LogFilterOption;
 import org.Roclh.model.dto.telegram.TelegramProxyConfigForm;
 import org.Roclh.service.telegram.TelegramProxyService;
+import org.Roclh.service.telegram.TelemtProcessManager;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
+
+import java.util.ArrayList;
+import java.util.List;
 
 @Controller
 @RequestMapping("/admin/telegram")
@@ -17,6 +23,7 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 public class AdminTelegramController {
 
     private final TelegramProxyService telegramProxyService;
+    private final TelemtProcessManager telemtProcessManager;
 
     @GetMapping
     public String page(Model model) {
@@ -27,6 +34,15 @@ public class AdminTelegramController {
         model.addAttribute("users", telegramProxyService.findAll().stream()
                 .map(telegramProxyService::toUserDto)
                 .toList());
+
+        model.addAttribute("recentLogs", telemtProcessManager.recentLogs(200));
+
+        List<LogFilterOption> filterOptions = new ArrayList<>();
+        for (TelegramProxyUser u : telegramProxyService.findAll()) {
+            if (u.getLabel() == null || u.getLabel().isBlank()) continue;
+            filterOptions.add(new LogFilterOption(u.getLabel(), u.getLabel()));
+        }
+        model.addAttribute("filterOptions", filterOptions);
         return "admin/telegram";
     }
 

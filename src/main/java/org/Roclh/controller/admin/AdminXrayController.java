@@ -3,6 +3,7 @@ package org.Roclh.controller.admin;
 import lombok.RequiredArgsConstructor;
 import org.Roclh.model.Subscription;
 import org.Roclh.model.User;
+import org.Roclh.model.dto.LogFilterOption;
 import org.Roclh.model.dto.XrayClientOption;
 import org.Roclh.service.SubscriptionService;
 import org.Roclh.service.UserService;
@@ -36,13 +37,14 @@ public class AdminXrayController {
         model.addAttribute("version", installer.installedVersion());
         model.addAttribute("installed", installer.isInstalled());
         model.addAttribute("recentLogs", processManager.recentLogs(50));
-        List<XrayClientOption> clients = new ArrayList<>();
+        List<LogFilterOption> clients = new ArrayList<>();
         for (Subscription s : subscriptionService.findAllEnabled()) {
             if (s.getXrayUuid() == null || s.getXrayUuid().isBlank()) continue;
             String username = userService.findById(s.getUserId())
                     .map(User::getUsername)
                     .orElse("?");
-            clients.add(new XrayClientOption(s.getXrayUuid(), username));
+            // В Xray-логах светится `email` = subscription.id, поэтому фильтруем по нему.
+            clients.add(new LogFilterOption(s.getId().toString(), username));
         }
         model.addAttribute("clients", clients);
         return "admin/xray";

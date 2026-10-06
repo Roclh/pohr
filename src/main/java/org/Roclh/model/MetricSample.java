@@ -46,4 +46,16 @@ public class MetricSample {
     private Long xrayRxBytes;
     @Column(name = "xray_tx_bytes", columnDefinition = "INTEGER")
     private Long xrayTxBytes;
+    @JdbcTypeCode(SqlTypes.INTEGER)
+    @Column(name = "telemt_running", nullable = false)
+    private boolean telemtRunning;
+
+    @Column(name = "telemt_cpu_pct")
+    private Double telemtCpuPct;
+    @Column(name = "telemt_mem_bytes", columnDefinition = "INTEGER")
+    private Long telemtMemBytes;
+    @Column(name = "telemt_rx_bytes", columnDefinition = "INTEGER")
+    private Long telemtRxBytes;
+    @Column(name = "telemt_tx_bytes", columnDefinition = "INTEGER")
+    private Long telemtTxBytes;
 }

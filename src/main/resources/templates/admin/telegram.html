@@ -151,6 +151,13 @@
         <p th:if="${#lists.isEmpty(users)}" class="muted"
            th:text="#{admin.telegram.noUsers}">Пользователей пока нет.</p>
     </section>
+    <section class="card">
+        <h2 th:text="#{admin.telegram.logs.title}">telemt logs</h2>
+        <p class="hint" th:text="#{admin.telegram.logs.hint}">
+            Прямой stderr/stdout процесса telemt. Ошибки SOCKS/upstream видны здесь.
+        </p>
+        <div th:replace="~{fragments/layout :: logViewer('/ws/telemt-logs', ${recentLogs}, ${filterOptions})}"></div>
+    </section>
 </main>
 </body>
 </html>

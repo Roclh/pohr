@@ -9,7 +9,7 @@
     <h1 th:text="#{admin.monitoring.title}">Monitoring</h1>
 
     <p class="muted" th:text="#{admin.monitoring.text}">
-        Метрики контейнера и Xray за последние 24 часа. Точка в минуту.
+        Метрики контейнера, Xray и telemt за последние 24 часа. Точка в минуту.
     </p>
 
     <!-- ===== Current values ===== -->
@@ -21,6 +21,7 @@
                 <div class="metric-value"
                      th:text="${latest.podCpuPct() != null
                          ? #numbers.formatDecimal(latest.podCpuPct(), 1, 1) + ' %' : '—'}">—</div>
+                <div class="metric-sub" th:text="#{admin.monitoring.cpu.hint}">% от одного ядра</div>
             </div>
             <div class="metric-tile">
                 <div class="metric-label" th:text="#{admin.monitoring.mem}">RAM (pod)</div>
@@ -48,8 +49,33 @@
                     <span th:unless="${latest.xrayRunning()}" class="badge disabled" th:text="#{admin.monitoring.stopped}">stopped</span>
                 </div>
                 <div class="metric-sub"
-                     th:if="${latest.xrayMemBytes() != null and latest.xrayCpuPct() != null}"
-                     th:text="${T(java.lang.String).format('%.0f MB · %.1f %%', latest.xrayMemBytes() / 1048576.0, latest.xrayCpuPct())}">—</div>
+                     th:if="${latest.xrayMemBytes() != null}"
+                     th:text="${T(java.lang.String).format('RSS %.0f MB · CPU %.1f %%',
+                     latest.xrayMemBytes() / 1048576.0,
+                     latest.xrayCpuPct() != null ? latest.xrayCpuPct() : 0.0)}">—</div>
+                <div class="metric-sub"
+                     th:if="${latest.xrayRxBytes() != null}"
+                     th:text="${T(java.lang.String).format('IO %.0f/%.0f MB',
+                     latest.xrayRxBytes() / 1048576.0,
+                     latest.xrayTxBytes() / 1048576.0)}">—</div>
+            </div>
+
+            <div class="metric-tile">
+                <div class="metric-label" th:text="#{admin.monitoring.telemt}">telemt</div>
+                <div class="metric-value">
+                    <span th:if="${latest.telemtRunning()}" class="badge enabled" th:text="#{admin.monitoring.running}">running</span>
+                    <span th:unless="${latest.telemtRunning()}" class="badge disabled" th:text="#{admin.monitoring.stopped}">stopped</span>
+                </div>
+                <div class="metric-sub"
+                     th:if="${latest.telemtMemBytes() != null}"
+                     th:text="${T(java.lang.String).format('RSS %.0f MB · CPU %.1f %%',
+                     latest.telemtMemBytes() / 1048576.0,
+                     latest.telemtCpuPct() != null ? latest.telemtCpuPct() : 0.0)}">—</div>
+                <div class="metric-sub"
+                     th:if="${latest.telemtRxBytes() != null}"
+                     th:text="${T(java.lang.String).format('IO %.0f/%.0f MB',
+                     latest.telemtRxBytes() / 1048576.0,
+                     latest.telemtTxBytes() / 1048576.0)}">—</div>
             </div>
         </div>
     </section>
@@ -58,28 +84,109 @@
     <section class="card" th:if="${sampleCount > 1}">
         <h2 th:text="#{admin.monitoring.charts}">24 часа</h2>
 
+        <!-- CPU -->
         <div class="chart-block">
-            <div class="chart-title" th:text="#{admin.monitoring.cpu}">CPU (pod), %</div>
-            <svg viewBox="0 0 600 120" preserveAspectRatio="none" class="chart">
-                <line x1="0" y1="120" x2="600" y2="120" class="chart-axis"/>
-                <path th:attr="d=${cpuPath}" class="chart-line chart-line-cpu"/>
-            </svg>
+            <div class="chart-header">
+                <div class="chart-title" th:text="#{admin.monitoring.cpuChart}">CPU</div>
+                <div class="chart-stats">
+                    <span>max <b th:text="${#numbers.formatDecimal(cpuChart.max(), 1, 1)} + ' %'">—</b></span>
+                    <span>min <b th:text="${#numbers.formatDecimal(cpuChart.min(), 1, 1)} + ' %'">—</b></span>
+                </div>
+            </div>
+            <div class="chart-legend">
+            <span th:each="s : ${cpuChart.series()}" class="chart-legend-item">
+                <span class="chart-legend-swatch" th:classappend="${s.cssClass()}"></span>
+                <span th:text="${s.label()}">Series</span>
+            </span>
+            </div>
+            <div class="chart-wrap">
+                <div class="chart-y-axis">
+                    <span th:each="t : ${cpuChart.yTicks()}" th:text="${t}">—</span>
+                </div>
+                <svg viewBox="0 0 600 120" preserveAspectRatio="none" class="chart">
+                    <line x1="0" y1="0"   x2="600" y2="0"   class="chart-grid"/>
+                    <line x1="0" y1="60"  x2="600" y2="60"  class="chart-grid"/>
+                    <line x1="0" y1="120" x2="600" y2="120" class="chart-grid"/>
+                    <path th:each="s : ${cpuChart.series()}"
+                          th:attr="d=${s.path()},class=${s.cssClass()}"/>
+                </svg>
+            </div>
+            <div class="chart-x-axis" th:if="${chartXStart != null}">
+                <span th:text="${chartXStart}">—</span>
+                <span th:text="${chartXEnd}">—</span>
+            </div>
+            <p class="chart-empty" th:if="${!cpuChart.hasData()}"
+               th:text="#{admin.monitoring.noDataChart}">No data yet.</p>
         </div>
 
+        <!-- RAM -->
         <div class="chart-block">
-            <div class="chart-title" th:text="#{admin.monitoring.mem}">RAM (pod), MB</div>
-            <svg viewBox="0 0 600 120" preserveAspectRatio="none" class="chart">
-                <line x1="0" y1="120" x2="600" y2="120" class="chart-axis"/>
-                <path th:attr="d=${memPath}" class="chart-line chart-line-mem"/>
-            </svg>
+            <div class="chart-header">
+                <div class="chart-title" th:text="#{admin.monitoring.memChart}">RAM</div>
+                <div class="chart-stats">
+                    <span>max <b th:text="${T(java.lang.String).format('%.1f MB', memChart.max())}">—</b></span>
+                    <span>min <b th:text="${T(java.lang.String).format('%.1f MB', memChart.min())}">—</b></span>
+                </div>
+            </div>
+            <div class="chart-legend">
+            <span th:each="s : ${memChart.series()}" class="chart-legend-item">
+                <span class="chart-legend-swatch" th:classappend="${s.cssClass()}"></span>
+                <span th:text="${s.label()}">Series</span>
+            </span>
+            </div>
+            <div class="chart-wrap">
+                <div class="chart-y-axis">
+                    <span th:each="t : ${memChart.yTicks()}" th:text="${t}">—</span>
+                </div>
+                <svg viewBox="0 0 600 120" preserveAspectRatio="none" class="chart">
+                    <line x1="0" y1="0"   x2="600" y2="0"   class="chart-grid"/>
+                    <line x1="0" y1="60"  x2="600" y2="60"  class="chart-grid"/>
+                    <line x1="0" y1="120" x2="600" y2="120" class="chart-grid"/>
+                    <path th:each="s : ${memChart.series()}"
+                          th:attr="d=${s.path()},class=${s.cssClass()}"/>
+                </svg>
+            </div>
+            <div class="chart-x-axis" th:if="${chartXStart != null}">
+                <span th:text="${chartXStart}">—</span>
+                <span th:text="${chartXEnd}">—</span>
+            </div>
+            <p class="chart-empty" th:if="${!memChart.hasData()}"
+               th:text="#{admin.monitoring.noDataChart}">No data yet.</p>
         </div>
 
-        <div class="chart-block" th:if="${!#strings.isEmpty(xrayPath)}">
-            <div class="chart-title" th:text="#{admin.monitoring.xrayMem}">Xray RSS, MB</div>
-            <svg viewBox="0 0 600 120" preserveAspectRatio="none" class="chart">
-                <line x1="0" y1="120" x2="600" y2="120" class="chart-axis"/>
-                <path th:attr="d=${xrayPath}" class="chart-line chart-line-xray"/>
-            </svg>
+        <!-- JVM heap -->
+        <div class="chart-block">
+            <div class="chart-header">
+                <div class="chart-title" th:text="#{admin.monitoring.jvmChart}">JVM heap</div>
+                <div class="chart-stats">
+                    <span>max <b th:text="${T(java.lang.String).format('%.1f MB', jvmChart.max())}">—</b></span>
+                    <span>min <b th:text="${T(java.lang.String).format('%.1f MB', jvmChart.min())}">—</b></span>
+                </div>
+            </div>
+            <div class="chart-legend">
+            <span th:each="s : ${jvmChart.series()}" class="chart-legend-item">
+                <span class="chart-legend-swatch" th:classappend="${s.cssClass()}"></span>
+                <span th:text="${s.label()}">Series</span>
+            </span>
+            </div>
+            <div class="chart-wrap">
+                <div class="chart-y-axis">
+                    <span th:each="t : ${jvmChart.yTicks()}" th:text="${t}">—</span>
+                </div>
+                <svg viewBox="0 0 600 120" preserveAspectRatio="none" class="chart">
+                    <line x1="0" y1="0"   x2="600" y2="0"   class="chart-grid"/>
+                    <line x1="0" y1="60"  x2="600" y2="60"  class="chart-grid"/>
+                    <line x1="0" y1="120" x2="600" y2="120" class="chart-grid"/>
+                    <path th:each="s : ${jvmChart.series()}"
+                          th:attr="d=${s.path()},class=${s.cssClass()}"/>
+                </svg>
+            </div>
+            <div class="chart-x-axis" th:if="${chartXStart != null}">
+                <span th:text="${chartXStart}">—</span>
+                <span th:text="${chartXEnd}">—</span>
+            </div>
+            <p class="chart-empty" th:if="${!jvmChart.hasData()}"
+               th:text="#{admin.monitoring.noDataChart}">No data yet.</p>
         </div>
     </section>
 
@@ -108,8 +215,7 @@
                                          : 'user'}"
                           th:text="${#messages.msg('node.status.' + #strings.toLowerCase(n.status().name()))}">—</span>
                 </td>
-                <td data-label="Tunnel"
-                    th:text="${n.lastTunnelIp()} ?: '—'">—</td>
+                <td data-label="Tunnel" th:text="${n.lastTunnelIp()} ?: '—'">—</td>
                 <td data-label="Health"
                     th:text="${n.lastHealthAt() != null
                         ? #strings.substringBefore(n.lastHealthAt().toString(), '.') : '—'}">—</td>

@@ -22,17 +22,31 @@
             Секрет ещё не сгенерирован. Включите прокси на /admin/telegram, и он появится.
         </div>
 
-        <div class="copy-box" th:if="${tg.proxyUrl() != null}">
-            <input type="text" readonly th:value="${tg.proxyUrl()}" id="tg-url">
-            <button type="button" class="copy-btn" data-copy-target="tg-url"
-                    th:text="#{home.subscription.copy}">Copy</button>
+        <div class="tg-add-buttons" th:if="${tg.proxyUrl() != null}">
+            <a class="tg-add-btn" th:href="${tg.proxyUrl()}">
+                <span th:text="#{home.tg.add}">Добавить в Telegram</span>
+            </a>
+            <a class="tg-add-btn" th:if="${tg.webProxyUrl() != null}"
+               th:href="${tg.webProxyUrl()}">
+                <span th:text="#{home.tg.addWeb}">Добавить WEB-прокси</span>
+            </a>
         </div>
 
-        <div class="copy-box" th:if="${tg.webProxyUrl() != null}" style="margin-top:8px;">
-            <input type="text" readonly th:value="${tg.webProxyUrl()}" id="tg-web">
-            <button type="button" class="copy-btn" data-copy-target="tg-web"
-                    th:text="#{admin.telegram.webCopy}">WEB</button>
-        </div>
+        <details class="advanced-block" style="margin-top: 14px;" th:if="${tg.proxyUrl() != null}">
+            <summary th:text="#{home.tg.manual}">Ручной импорт</summary>
+            <div class="advanced-block-body">
+                <div class="copy-box">
+                    <input type="text" readonly th:value="${tg.proxyUrl()}" id="tg-url">
+                    <button type="button" class="copy-btn" data-copy-target="tg-url"
+                            th:text="#{home.subscription.copy}">Copy</button>
+                </div>
+                <div class="copy-box" th:if="${tg.webProxyUrl() != null}" style="margin-top:8px;">
+                    <input type="text" readonly th:value="${tg.webProxyUrl()}" id="tg-web">
+                    <button type="button" class="copy-btn" data-copy-target="tg-web"
+                            th:text="#{admin.telegram.webCopy}">WEB</button>
+                </div>
+            </div>
+        </details>
 
         <p class="muted" style="margin-top: 12px;">
             <span th:text="#{admin.telegram.userEnabled}">Активен</span>:

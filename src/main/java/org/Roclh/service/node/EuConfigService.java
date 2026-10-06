@@ -1,7 +1,10 @@
 package org.Roclh.service.node;
 
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.Roclh.model.EuNode;
+import org.Roclh.model.TelegramProxyConfig;
+import org.Roclh.repository.telegram.TelegramProxyConfigRepository;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import tools.jackson.databind.ObjectMapper;
@@ -14,9 +17,11 @@ import java.util.HexFormat;
 
 @Slf4j
 @Service
+@RequiredArgsConstructor
 public class EuConfigService {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final TelegramProxyConfigRepository telegramProxyConfigRepository;
 
     @Value("${xray.reality.dest:www.microsoft.com:443}")
     private String defaultDest;
@@ -138,6 +143,18 @@ public class EuConfigService {
         r1.put("type", "field");
         r1.put("outboundTag", "eu");
         r1.putArray("inboundTag").add("healthcheck-socks");
+        String coverDomain = telegramProxyConfigRepository.findById("default")
+                .map(TelegramProxyConfig::getCoverDomain)
+                .filter(d -> !d.isBlank())
+                .orElse(null);
+
+        if (coverDomain != null) {
+            ObjectNode rCover = rules.addObject();
+            rCover.put("type", "field");
+            rCover.put("outboundTag", "direct");
+            rCover.putArray("inboundTag").add("telemt-socks");
+            rCover.putArray("domain").add(coverDomain);
+        }
 
         ObjectNode rTelemt = rules.addObject();
         rTelemt.put("type", "field");

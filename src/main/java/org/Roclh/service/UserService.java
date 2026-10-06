@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.Roclh.model.User;
 import org.Roclh.repository.UserRepository;
 import org.Roclh.service.event.UserCreatedEvent;
+import org.Roclh.service.event.UserDeletedEvent;
 import org.Roclh.service.event.UserRenamedEvent;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -73,6 +74,7 @@ public class UserService {
     @Transactional
     public void delete(UUID id) {
         userRepository.deleteById(id);
+        events.publishEvent(new UserDeletedEvent(id));
     }
 
     public long countAdmins() {

@@ -2,8 +2,10 @@ package org.Roclh.controller.admin;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.Roclh.model.XrayConfig;
 import org.Roclh.model.dto.XrayConfigForm;
+import org.Roclh.model.dto.XrayConfigPreview;
 import org.Roclh.service.xray.XrayConfigMaterializer;
 import org.Roclh.service.xray.XrayConfigService;
 import org.springframework.stereotype.Controller;
@@ -14,8 +16,11 @@ import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
+import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
+@Slf4j
 @Controller
 @RequestMapping("/admin/xray/configs")
 @RequiredArgsConstructor
@@ -50,7 +55,8 @@ public class AdminXrayConfigController {
             return "admin/xray-config-form";
         }
         try {
-            configService.create(form.name(), form.description(), form.content(), form.realityPublicKey());
+            configService.create(form.name(), form.description(),
+                    materializer.dematerialize(form.content()), form.realityPublicKey());
             flash.addFlashAttribute("successMessage", "flash.xray.config.created");
             return "redirect:/admin/xray/configs";
         } catch (IllegalArgumentException e) {
@@ -67,11 +73,27 @@ public class AdminXrayConfigController {
             flash.addFlashAttribute("errorMessage", "error.xray.config.notfound");
             return "redirect:/admin/xray/configs";
         }
+
+        String content = cfg.getContent();
+        List<Integer> generatedLines = List.of();
+
+        if (cfg.isActive()) {
+            try {
+                XrayConfigPreview p = materializer.preview();
+                content = p.materialized();
+                generatedLines = p.generatedLines();
+            } catch (Exception e) {
+                log.warn("Failed to build config preview: {}", e.getMessage());
+            }
+        }
+
         model.addAttribute("form", new XrayConfigForm(
-                cfg.getName(), cfg.getDescription(), cfg.getContent(), cfg.getRealityPublicKey()));
+                cfg.getName(), cfg.getDescription(), content, cfg.getRealityPublicKey()));
         model.addAttribute("mode", "edit");
         model.addAttribute("configId", id);
         model.addAttribute("active", cfg.isActive());
+        model.addAttribute("generatedLinesCsv",
+                generatedLines.stream().map(String::valueOf).collect(Collectors.joining(",")));
         return "admin/xray-config-form";
     }
 
@@ -89,7 +111,8 @@ public class AdminXrayConfigController {
             return "admin/xray-config-form";
         }
         try {
-            configService.update(id, form.name(), form.description(), form.content(), form.realityPublicKey());
+            configService.update(id, form.name(), form.description(),
+                    materializer.dematerialize(form.content()), form.realityPublicKey());
             flash.addFlashAttribute("successMessage", "flash.xray.config.updated");
             return "redirect:/admin/xray/configs";
         } catch (IllegalArgumentException e) {
@@ -168,7 +191,6 @@ public class AdminXrayConfigController {
                 binding.rejectValue("realityPublicKey", "error.xray.config.realityPublicKey.required");
             }
         } catch (Exception ignored) {
-            // JSON-валидатор уже отругает
         }
     }
 }

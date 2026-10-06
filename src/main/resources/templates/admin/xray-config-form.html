@@ -48,10 +48,25 @@
         </div>
 
         <div class="field" th:classappend="${#fields.hasErrors('content')} ? 'has-error'">
-            <label for="content" th:text="#{xray.config.form.content}">JSON content</label>
-            <textarea id="content" th:field="*{content}" rows="30" spellcheck="false"
-                      class="config-editor"></textarea>
-            <p class="field-error" th:if="${#fields.hasErrors('content')}" th:errors="*{content}">error</p>
+            <label for="config-editor" th:text="#{xray.config.form.content}">JSON content</label>
+
+            <div id="config-editor"
+                 class="config-editor-content"
+                 contenteditable="true"
+                 spellcheck="false"
+                 autocomplete="off"
+                 autocorrect="off"
+                 autocapitalize="off"
+                 th:attr="data-initial=${form.content},data-generated=${generatedLinesCsv}"></div>
+            <input type="hidden" name="content" id="config-content-hidden">
+
+            <p class="hint" th:if="${active}">
+                Жёлтым выделены строки, сгенерированные Pohr (клиенты из активных подписок,
+                EU-outbound, healthcheck-socks, telemt-socks, routing). Их нельзя редактировать —
+                они пересчитываются на сервере при каждой материализации.
+            </p>
+            <p class="field-error" th:if="${#fields.hasErrors('content')}"
+               th:errors="*{content}">error</p>
         </div>
 
         <div class="form-actions">
@@ -61,14 +76,76 @@
     </form>
 </main>
 <script>
-    document.getElementById('format-json')?.addEventListener('click', () => {
-        const ta = document.getElementById('content');
-        try {
-            ta.value = JSON.stringify(JSON.parse(ta.value), null, 2);
-        } catch (e) {
-            alert('Invalid JSON: ' + e.message);
+    (function () {
+        const editor = document.getElementById('config-editor');
+        const hidden = document.getElementById('config-content-hidden');
+        if (!editor || !hidden) return;
+
+        const initial = editor.dataset.initial || '';
+        const generated = new Set(
+            (editor.dataset.generated || '')
+                .split(',')
+                .filter(Boolean)
+                .map(Number)
+        );
+
+        function render(text) {
+            editor.innerHTML = '';
+            const lines = text.split('\n');
+            for (let i = 0; i < lines.length; i++) {
+                const span = document.createElement('span');
+                span.className = 'config-line' + (generated.has(i) ? ' generated-line' : '');
+                if (generated.has(i)) span.contentEditable = 'false';
+                // \u00a0 чтобы пустая строка не «схлопывалась»
+                span.textContent = lines[i].length ? lines[i] : '\u00a0';
+                editor.appendChild(span);
+                if (i < lines.length - 1) {
+                    editor.appendChild(document.createTextNode('\n'));
+                }
+            }
         }
-    });
+
+        function serialize() {
+            // innerText сохраняет визуальные переводы строк; textContent — тоже,
+            // но innerText стабильнее в contenteditable.
+            return editor.innerText.replace(/\u00a0/g, '').replace(/\n$/, '');
+        }
+
+        render(initial);
+        hidden.value = initial;
+
+        editor.addEventListener('input', () => {
+            hidden.value = serialize();
+        });
+
+        // Вставка только plain-text — иначе браузер тащит HTML
+        editor.addEventListener('paste', (e) => {
+            e.preventDefault();
+            const text = (e.clipboardData || window.clipboardData).getData('text/plain');
+            document.execCommand('insertText', false, text);
+        });
+
+        const form = editor.closest('form');
+        if (form) {
+            form.addEventListener('submit', () => {
+                hidden.value = serialize();
+            });
+        }
+    })();
+</script>
+<script>
+    const formatBtn = document.getElementById('format-json');
+    if (formatBtn) {
+        formatBtn.addEventListener('click', () => {
+            try {
+                const parsed = JSON.parse(serialize());
+                render(JSON.stringify(parsed, null, 2));
+                hidden.value = serialize();
+            } catch (e) {
+                alert('Invalid JSON: ' + e.message);
+            }
+        });
+    }
 </script>
 
 <script>

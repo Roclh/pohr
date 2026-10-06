@@ -70,16 +70,35 @@
     <section class="card" th:if="${tgProxyUrl != null}">
         <h2 th:text="#{home.tg.title}">Telegram MTProto</h2>
         <p class="hint" th:text="#{home.tg.hint}">Откройте на телефоне — прокси добавится автоматически.</p>
-        <div class="copy-box">
-            <input type="text" readonly th:value="${tgProxyUrl}" id="tg-url">
-            <button type="button" class="copy-btn" data-copy-target="tg-url"
-                    th:text="#{home.subscription.copy}">Copy</button>
+
+        <div class="tg-add-buttons">
+            <a class="tg-add-btn" th:href="${tgProxyUrl}">
+                <span th:text="#{home.tg.add}">Добавить в Telegram</span>
+            </a>
+            <a class="tg-add-btn" th:if="${tgWebProxyUrl != null}"
+               th:href="${tgWebProxyUrl}">
+                <span th:text="#{home.tg.addWeb}">Добавить WEB-прокси</span>
+            </a>
         </div>
-        <div class="copy-box" th:if="${tgWebProxyUrl != null}" style="margin-top:8px;">
-            <input type="text" readonly th:value="${tgWebProxyUrl}" id="tg-web">
-            <button type="button" class="copy-btn" data-copy-target="tg-web"
-                    th:text="#{home.tg.web}">WEB</button>
-        </div>
+
+        <details class="advanced-block" style="margin-top: 14px;">
+            <summary th:text="#{home.tg.manual}">Ручной импорт</summary>
+            <div class="advanced-block-body">
+                <p class="hint" th:text="#{home.tg.manualHint}">
+                    Если кнопка не сработала — скопируйте ссылку и вставьте её в поле поиска Telegram.
+                </p>
+                <div class="copy-box">
+                    <input type="text" readonly th:value="${tgProxyUrl}" id="tg-url">
+                    <button type="button" class="copy-btn" data-copy-target="tg-url"
+                            th:text="#{home.subscription.copy}">Copy</button>
+                </div>
+                <div class="copy-box" th:if="${tgWebProxyUrl != null}" style="margin-top:8px;">
+                    <input type="text" readonly th:value="${tgWebProxyUrl}" id="tg-web">
+                    <button type="button" class="copy-btn" data-copy-target="tg-web"
+                            th:text="#{home.tg.web}">WEB</button>
+                </div>
+            </div>
+        </details>
     </section>
 
     <details class="advanced-block" th:if="${subscriptionUrl}">

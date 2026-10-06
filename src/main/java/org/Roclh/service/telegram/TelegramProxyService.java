@@ -165,6 +165,81 @@ public class TelegramProxyService {
         apply();
     }
 
+    /** Публичная обёртка над installer.generateSecretn — для генерации при создании юзера. */
+    public String generateSecret() {
+        return installer.generateSecretn();
+    }
+
+    public boolean isRunning() {
+        return processManager.isRunning();
+    }
+
+    /** Лёгкий reload telemt: сгенерировать секреты, перезаписать TOML, рестартнуть только telemt.
+     *  Xray не трогаем — telemt-socks inbound не меняется при добавлении/удалении юзера. */
+    @Transactional
+    public void reloadUsers() {
+        TelegramProxyConfig c = getConfig();
+        try {
+            generateMissingSecrets();
+
+            if (!c.isEnabled()) {
+                log.debug("telemt disabled globally — secrets generated, process not touched");
+                return;
+            }
+
+            // 2. Дальше — как раньше
+            ensureInstalled();
+            Path cfg = writeTelemtConfig(c);
+            if (processManager.isRunning()) {
+                processManager.restart(cfg.toString(), c.getListenPort());
+            } else {
+                processManager.start(cfg.toString(), c.getListenPort());
+            }
+            log.info("telemt reloaded ({} enabled users)", userRepo.countByEnabledTrue());
+        } catch (Exception e) {
+            log.warn("Failed to reload telemt: {}", e.getMessage(), e);
+        }
+    }
+
+    /** Автозапуск при старте приложения. Xray к этому моменту уже поднят XrayAutoInstaller'ом
+     *  с telemt-socks inbound — рестартить его не нужно. */
+    @Transactional
+    public void startInternal() {
+        TelegramProxyConfig c = getConfig();
+        ensureInstalledQuietly();
+        generateMissingSecrets();
+        try {
+            Path cfg = writeTelemtConfig(c);
+            if (!processManager.isRunning()) {
+                processManager.start(cfg.toString(), c.getListenPort());
+            }
+            log.info("telemt auto-started on :{} ({} enabled users)",
+                    c.getListenPort(), userRepo.countByEnabledTrue());
+        } catch (Exception e) {
+            throw new IllegalStateException("Failed to auto-start telemt: " + e.getMessage(), e);
+        }
+    }
+
+    private void generateMissingSecrets() {
+        for (TelegramProxyUser u : userRepo.findBySecretIsNull()) {
+            try {
+                u.setSecret(installer.generateSecretn());
+                userRepo.save(u);
+            } catch (Exception e) {
+                log.warn("Cannot generate secret for user {}: {}", u.getLabel(), e.getMessage());
+            }
+        }
+    }
+
+    private void ensureInstalledQuietly() {
+        if (installer.isInstalled()) return;
+        try {
+            ensureInstalled();
+        } catch (Exception e) {
+            throw new IllegalStateException("telemt not installed and cannot install: " + e.getMessage(), e);
+        }
+    }
+
     // --- Apply ----------------------------------------------------------------
 
     /** Генерирует конфиг telemt, материализует Xray и (пере)запускает процессы. */
@@ -174,34 +249,20 @@ public class TelegramProxyService {
         try {
             if (c.isEnabled()) {
                 ensureInstalled();
-
-                // 1. Догенерировать секреты для новых пользователей
-                for (TelegramProxyUser u : userRepo.findBySecretIsNull()) {
-                    try {
-                        u.setSecret(installer.generateSecretn());
-                        userRepo.save(u);
-                    } catch (Exception e) {
-                        log.warn("Cannot generate secret for user {}: {}", u.getLabel(), e.getMessage());
-                    }
-                }
-
-                // 2. Записать конфиг telemt
+                generateMissingSecrets();
                 Path cfg = writeTelemtConfig(c);
 
-                // 3. Материализовать Xray (добавит telemt-socks inbound) и перезапустить
                 materializer.materialize();
                 if (xrayProcessManager.isRunning()) {
                     xrayProcessManager.restart();
                 }
 
-                // 4. Запустить/перезапустить telemt
                 if (processManager.isRunning()) {
                     processManager.restart(cfg.toString(), c.getListenPort());
                 } else {
                     processManager.start(cfg.toString(), c.getListenPort());
                 }
             } else {
-                // Останавливаем telemt, материализуем Xray без telemt-socks
                 processManager.stop();
                 materializer.materialize();
                 if (xrayProcessManager.isRunning()) {

@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.Roclh.model.EuNode;
 import org.Roclh.model.Subscription;
 import org.Roclh.model.XrayConfig;
+import org.Roclh.model.dto.XrayConfigPreview;
 import org.Roclh.repository.SubscriptionRepository;
 import org.Roclh.repository.telegram.TelegramProxyConfigRepository;
 import org.Roclh.service.node.EuConfigService;
@@ -19,6 +20,7 @@ import tools.jackson.databind.node.ObjectNode;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.List;
 
 @Slf4j
@@ -111,6 +113,96 @@ public class XrayConfigMaterializer {
         removeByTag(inbounds, "telemt-socks");
         inbounds.add(euConfigService.buildTelemtSocksInbound(telemtSocksPort));
         log.info("Injected telemt-socks inbound on 127.0.0.1:{}", telemtSocksPort);
+    }
+
+    /** Строит два представления: исходный конфиг из БД и материализованный (со вставками). */
+    public XrayConfigPreview preview() {
+        XrayConfig cfg = configService.getActiveOrThrow();
+        String clean = dematerialize(cfg.getContent());
+        JsonNode original = objectMapper.readTree(clean);
+        JsonNode materialized = original.deepCopy();
+        injectEuOutbound(materialized);
+        injectTelemtSocksInbound(materialized);
+        injectClients(materialized);
+
+        var writer = objectMapper.writerWithDefaultPrettyPrinter();
+        String originalStr = writer.writeValueAsString(original);
+        String materializedStr = writer.writeValueAsString(materialized);
+
+        List<Integer> generated = diffAddedLines(
+                List.of(originalStr.split("\n")),
+                List.of(materializedStr.split("\n")));
+
+        return new XrayConfigPreview(originalStr, materializedStr, generated);
+    }
+
+    /**
+     * Убирает из JSON все вставки, сгенерированные материализацией:
+     * healthcheck-socks / telemt-socks inbounds, eu outbound, routing и clients[].
+     * Возвращает «чистый» конфиг, пригодный для хранения в БД.
+     */
+    public String dematerialize(String json) {
+        try {
+            JsonNode parsed = objectMapper.readTree(json);
+            if (!(parsed instanceof ObjectNode root)) {
+                return json;
+            }
+
+            if (root.get("inbounds") instanceof ArrayNode inbounds) {
+                removeByTag(inbounds, "healthcheck-socks");
+                removeByTag(inbounds, "telemt-socks");
+                // clients инжектятся из подписок при каждой материализации
+                for (JsonNode in : inbounds) {
+                    if (!(in instanceof ObjectNode inObj)) continue;
+                    if (!"vless".equals(inObj.path("protocol").asText())) continue;
+                    if (inObj.get("settings") instanceof ObjectNode settings) {
+                        settings.putArray("clients");
+                    }
+                }
+            }
+
+            if (root.get("outbounds") instanceof ArrayNode outbounds) {
+                removeByTag(outbounds, "eu");
+            }
+
+            root.remove("routing");
+
+            return objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(root);
+        } catch (Exception e) {
+            log.warn("Failed to dematerialize config, storing as-is: {}", e.getMessage());
+            return json;
+        }
+    }
+
+    /** Классический LCS-диф. Возвращает 0-based индексы строк из b, которых нет в a. */
+    private static List<Integer> diffAddedLines(List<String> a, List<String> b) {
+        int n = a.size(), m = b.size();
+        int[][] dp = new int[n + 1][m + 1];
+        for (int i = n - 1; i >= 0; i--) {
+            for (int j = m - 1; j >= 0; j--) {
+                dp[i][j] = a.get(i).equals(b.get(j))
+                        ? dp[i + 1][j + 1] + 1
+                        : Math.max(dp[i + 1][j], dp[i][j + 1]);
+            }
+        }
+        List<Integer> added = new ArrayList<>();
+        int i = 0, j = 0;
+        while (i < n && j < m) {
+            if (a.get(i).equals(b.get(j))) {
+                i++;
+                j++;
+            } else if (dp[i + 1][j] >= dp[i][j + 1]) {
+                i++;              // строка удалена из a
+            } else {
+                added.add(j);     // строка добавлена в b
+                j++;
+            }
+        }
+        while (j < m) {
+            added.add(j);
+            j++;
+        }
+        return added;
     }
 
     private void injectClients(JsonNode root) {

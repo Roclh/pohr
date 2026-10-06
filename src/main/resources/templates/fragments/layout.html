@@ -38,5 +38,169 @@
     <span class="crumb-current" th:text="#{${currentKey}}">Page</span>
 </nav>
 
+<div th:fragment="logViewer(wsPath, initialLogs, filterOptions)" class="log-viewer">
+    <div class="toolbar log-toolbar">
+        <label class="log-filter">
+            <span th:text="#{admin.logs.filter.user}">User</span>
+            <select class="log-user-filter">
+                <option value="" th:text="#{admin.xray.logs.filter.all}">All</option>
+                <option th:each="o : ${filterOptions}"
+                        th:value="${o.value}"
+                        th:text="${o.label}">user</option>
+            </select>
+        </label>
+
+        <label class="log-filter">
+            <span th:text="#{admin.logs.filter.keyword}">Keyword</span>
+            <input type="text" class="log-keyword-filter"
+                   th:placeholder="#{admin.logs.filter.keyword.placeholder}">
+        </label>
+
+        <label class="log-collapse-label">
+            <input type="checkbox" class="log-collapse">
+            <span th:text="#{admin.logs.collapse}">Collapse</span>
+        </label>
+
+        <label class="log-filter">
+            <span th:text="#{admin.logs.filter.level}">Level</span>
+            <select class="log-level-filter">
+                <option value="" th:text="#{admin.logs.level.all}">All</option>
+                <option value="ERROR">ERROR</option>
+                <option value="WARN">WARN</option>
+                <option value="INFO">INFO</option>
+                <option value="DEBUG">DEBUG</option>
+            </select>
+        </label>
+
+        <label class="log-collapse-label">
+            <input type="checkbox" class="log-wrap">
+            <span th:text="#{admin.logs.wrap}">Soft wrap</span>
+        </label>
+
+        <button type="button" class="link-button on-light log-fullscreen"
+                th:title="#{admin.logs.fullscreen}"
+                th:text="'⛶'">⛶</button>
+        <button type="button" class="link-button on-light log-clear"
+                th:text="#{admin.xray.logs.clear}">Clear</button>
+    </div>
+
+    <pre class="logs"
+         th:attr="data-ws=${wsPath},data-initial=${#strings.listJoin(initialLogs, '
+')}"></pre>
+
+    <script>
+        (function () {
+            const root = document.currentScript.closest('.log-viewer');
+            if (!root) return;
+            const pre = root.querySelector('.logs');
+            const userSel = root.querySelector('.log-user-filter');
+            const kwInput = root.querySelector('.log-keyword-filter');
+            const collapseCb = root.querySelector('.log-collapse');
+            const wrapCb = root.querySelector('.log-wrap');
+            const clearBtn = root.querySelector('.log-clear');
+            const fsBtn = root.querySelector('.log-fullscreen');
+            const levelSel = root.querySelector('.log-level-filter');
+
+            function detectLevel(line) {
+                if (line.includes(' ERROR ')) return 'ERROR';
+                if (line.includes(' WARN '))  return 'WARN';
+                if (line.includes(' INFO '))  return 'INFO';
+                if (line.includes(' DEBUG ')) return 'DEBUG';
+                return '';
+            }
+
+            const userNames = new Map();
+            userSel.querySelectorAll('option[value]').forEach(o => {
+                if (o.value) userNames.set(o.value, o.textContent);
+            });
+
+            // Server уже почистил ANSI и разбил literal \n. На клиенте — только на всякий случай.
+            const ANSI = /\x1b\[[0-9;]*[A-Za-z]/g;
+            function sanitize(line) {
+                return line.replace(ANSI, '').replace(/\\n/g, ' ').replace(/\\r/g, '');
+            }
+
+            let raw = (pre.dataset.initial || '')
+                .split('\n').filter(Boolean).map(sanitize);
+
+            function enrich(line) {
+                let out = line;
+                for (const [val, name] of userNames) {
+                    if (out.includes(val) && !out.includes('(' + name + ')')) {
+                        out = out.split(val).join(val + ' (' + name + ')');
+                    }
+                }
+                return out;
+            }
+
+            function matches(line) {
+                const u = userSel.value;
+                if (u && !line.includes(u)) return false;
+                const kw = kwInput.value.trim();
+                if (kw && !line.toLowerCase().includes(kw.toLowerCase())) return false;
+                const lvl = levelSel.value;
+                if (lvl && detectLevel(line) !== lvl) return false;
+                return true;
+            }
+
+            function render() {
+                const filtered = raw.filter(matches).map(enrich);
+                let out;
+                if (collapseCb.checked) {
+                    const groups = [];
+                    for (const line of filtered) {
+                        const last = groups[groups.length - 1];
+                        if (last && last.text === line) last.count++;
+                        else groups.push({ text: line, count: 1 });
+                    }
+                    out = groups.map(g => g.count > 1
+                        ? g.text + '  ×' + g.count
+                        : g.text).join('\n');
+                } else {
+                    out = filtered.join('\n');
+                }
+                pre.textContent = out ? out + '\n' : '';
+                pre.scrollTop = pre.scrollHeight;
+            }
+
+            userSel.addEventListener('change', render);
+            kwInput.addEventListener('input', render);
+            collapseCb.addEventListener('change', render);
+            wrapCb.addEventListener('change', () => {
+                pre.classList.toggle('log-soft-wrap', wrapCb.checked);
+            });
+            clearBtn.addEventListener('click', () => { raw = []; pre.textContent = ''; });
+            fsBtn.addEventListener('click', () => {
+                root.classList.toggle('log-fullscreen-active');
+                fsBtn.textContent = root.classList.contains('log-fullscreen-active') ? '✕' : '⛶';
+            });
+            levelSel.addEventListener('change', render);
+
+            render();
+
+            const proto = location.protocol === 'https:' ? 'wss://' : 'ws://';
+            const ws = new WebSocket(proto + location.host + pre.dataset.ws);
+            ws.onmessage = (e) => {
+                // Сервер шлёт батчи, строки склеены \n.
+                const lines = e.data.split('\n').filter(Boolean).map(sanitize);
+                for (const line of lines) {
+                    raw.push(line);
+                    if (raw.length > 5000) raw = raw.slice(-2000);
+                    if (!matches(line)) continue;
+                    if (collapseCb.checked) {
+                        render();
+                    } else {
+                        pre.textContent += enrich(line) + '\n';
+                    }
+                }
+                if (!collapseCb.checked) {
+                    const total = pre.textContent.split('\n');
+                    if (total.length > 3000) pre.textContent = total.slice(-1500).join('\n');
+                    pre.scrollTop = pre.scrollHeight;
+                }
+            };
+        })();
+    </script>
+</div>
 </body>
 </html>

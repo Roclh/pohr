@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head(${script.getName()})}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<nav th:replace="~{fragments/layout :: crumbs(${script.getName()}, 'admin.scriptsCatalog.title', '/admin/scripts')}"></nav>
+
+<main class="container">
+    <h1>
+        <code th:text="${script.getName()}">v2rayn-setup.bat</code>
+        <span th:if="${script.isEntrypoint()}" class="script-entry-badge">entry</span>
+    </h1>
+
+    <div th:if="${successMessage}" class="alert success" th:text="#{${successMessage}}"></div>
+    <div th:if="${errorMessage}" class="alert error" th:text="${errorMessage}"></div>
+
+    <!-- ==== Метаданные ==== -->
+    <section class="card">
+        <h2 th:text="#{admin.scriptsCatalog.metadata}">Метаданные</h2>
+        <form th:action="@{/admin/scripts/{id}/meta(id=${script.getId()})}" method="post" class="form">
+            <div class="field">
+                <label for="displayName" th:text="#{admin.scriptsCatalog.displayName}">Display name</label>
+                <input type="text" id="displayName" name="displayName"
+                       th:value="${script.getDisplayName()}" required>
+            </div>
+            <div class="field">
+                <label for="description" th:text="#{admin.scriptsCatalog.description}">Description</label>
+                <textarea id="description" name="description" rows="2"
+                          th:text="${script.getDescription()}"></textarea>
+            </div>
+            <div class="field">
+                <label for="platform" th:text="#{admin.scriptsCatalog.platform}">Platform</label>
+                <select id="platform" name="platform">
+                    <option value="any" th:selected="${script.getPlatform() == 'any'}">any</option>
+                    <option value="windows" th:selected="${script.getPlatform() == 'windows'}">windows</option>
+                    <option value="linux" th:selected="${script.getPlatform() == 'linux'}">linux</option>
+                    <option value="macos" th:selected="${script.getPlatform() == 'macos'}">macos</option>
+                </select>
+            </div>
+            <div class="field">
+                <label for="accessLevel" th:text="#{admin.scriptsCatalog.access}">Access</label>
+                <select id="accessLevel" name="accessLevel">
+                    <option value="ADMIN" th:selected="${script.getAccessLevel().name() == 'ADMIN'}">ADMIN</option>
+                    <option value="PUBLIC" th:selected="${script.getAccessLevel().name() == 'PUBLIC'}">PUBLIC</option>
+                </select>
+            </div>
+            <div class="field">
+                <label for="sortOrder" th:text="#{admin.scriptsCatalog.sortOrder}">Sort order</label>
+                <input type="number" id="sortOrder" name="sortOrder"
+                       th:value="${script.getSortOrder()}" min="0" max="9999">
+            </div>
+            <div class="field checkbox">
+                <label>
+                    <input type="checkbox" name="entrypoint" value="true"
+                           th:checked="${script.isEntrypoint()}">
+                    <span th:text="#{admin.scriptsCatalog.entrypoint}">Entrypoint</span>
+                </label>
+            </div>
+            <div class="field checkbox">
+                <label>
+                    <input type="checkbox" name="enabled" value="true"
+                           th:checked="${script.isEnabled()}">
+                    <span th:text="#{admin.scriptsCatalog.enabled}">Enabled</span>
+                </label>
+            </div>
+            <div class="form-actions">
+                <button type="submit" th:text="#{user.form.save}">Сохранить</button>
+            </div>
+        </form>
+    </section>
+
+    <!-- ==== Активная версия ==== -->
+    <section class="card">
+        <h2 th:text="#{admin.scriptsCatalog.activeVersion}">Активная версия</h2>
+        <p th:if="${activeVersion != null}">
+            <span class="script-version" th:text="${activeVersion.getVersion()}">1.5</span>
+            <span class="muted" th:text="${activeVersion.getSize()} + ' B'">1024 B</span>
+            <span class="muted"
+                  th:text="${#strings.substringBefore(activeVersion.getCreatedAt().toString(), '.')}">
+                2026-10-07T15:00:00
+            </span>
+        </p>
+        <p th:if="${activeVersion == null}" class="muted"
+           th:text="#{admin.scriptsCatalog.noActive}">Нет активной версии.</p>
+
+        <div class="form-actions">
+            <a class="button" th:href="@{/admin/scripts/{id}/edit(id=${script.getId()})}"
+               th:text="#{admin.scriptsCatalog.editContent}">Редактировать содержимое</a>
+            <form th:action="@{/admin/scripts/{id}/bump-major(id=${script.getId()})}" method="post"
+                  class="inline"
+                  onsubmit="return confirm(this.dataset.confirm)"
+                  th:data-confirm="#{admin.scriptsCatalog.bumpMajor.confirm}">
+                <button type="submit" class="link-button on-light"
+                        th:text="#{admin.scriptsCatalog.bumpMajor}">Поднять мажор</button>
+            </form>
+            <form th:if="${script.isSeeded()}"
+                  th:action="@{/admin/scripts/{id}/reseed(id=${script.getId()})}"
+                  method="post" class="inline"
+                  onsubmit="return confirm(this.dataset.confirm)"
+                  th:data-confirm="#{admin.scriptsCatalog.reseed.confirm}">
+                <button type="submit" class="link-button on-light"
+                        th:text="#{admin.scriptsCatalog.reseed}">Сбросить к бандлу</button>
+            </form>
+        </div>
+
+        <div class="script-deps" th:if="${!deps.isEmpty()}">
+            <b th:text="#{script.preview.deps}">Зависимости:</b>
+            <code th:each="d : ${deps}" th:text="${d}" style="margin-right:6px;">pohr-utils.ps1</code>
+        </div>
+        <div class="script-deps" th:if="${!reverseDeps.isEmpty()}">
+            <b th:text="#{admin.scriptsCatalog.usedBy}">Кто зависит:</b>
+            <code th:each="d : ${reverseDeps}" th:text="${d}" style="margin-right:6px;">v2rayn-setup.bat</code>
+        </div>
+    </section>
+
+    <!-- ==== История версий ==== -->
+    <section class="card">
+        <h2 th:text="#{admin.scriptsCatalog.history}">История версий</h2>
+        <table class="table" th:if="${!#lists.isEmpty(history)}">
+            <thead>
+            <tr>
+                <th th:text="#{admin.scriptsCatalog.version}">Версия</th>
+                <th th:text="#{admin.scriptsCatalog.source}">Источник</th>
+                <th th:text="#{admin.scriptsCatalog.created}">Создана</th>
+                <th th:text="#{admin.scriptsCatalog.snapshot}">Снапшот</th>
+                <th class="actions" th:text="#{admin.scriptsCatalog.actions}">Действия</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="v : ${history}">
+                <td data-label="Версия">
+                    <span class="script-version" th:text="${v.getVersion()}">1.5</span>
+                    <span th:if="${v.isActive()}" class="badge enabled">active</span>
+                </td>
+                <td data-label="Источник" th:text="${v.getSource().name()}">UI_EDIT</td>
+                <td data-label="Создана"
+                    th:text="${#strings.substringBefore(v.getCreatedAt().toString(), '.')}">
+                    2026-10-07T15:00:00
+                </td>
+                <td data-label="Снапшот">
+                    <span th:if="${v.getSnapshotPath() != null}" class="badge enabled">yes</span>
+                    <span th:if="${v.getSnapshotPath() == null}" class="badge disabled">no</span>
+                </td>
+                <td class="actions">
+                    <form th:if="${!v.isActive() and v.getSnapshotPath() != null}"
+                          th:action="@{/admin/scripts/{id}/rollback(id=${script.getId()})}"
+                          method="post" class="inline"
+                          onsubmit="return confirm(this.dataset.confirm)"
+                          th:data-confirm="#{admin.scriptsCatalog.rollback.confirm}">
+                        <input type="hidden" name="versionId" th:value="${v.getId()}">
+                        <button type="submit" class="link-button on-light"
+                                th:text="#{admin.scriptsCatalog.rollback}">Откатить</button>
+                    </form>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+        <p th:if="${#lists.isEmpty(history)}" class="muted"
+           th:text="#{admin.scriptsCatalog.noHistory}">История пуста.</p>
+    </section>
+
+    <!-- ==== Удаление ==== -->
+    <section class="card">
+        <h2 th:text="#{admin.scriptsCatalog.dangerZone}">Опасная зона</h2>
+        <form th:action="@{/admin/scripts/{id}/delete(id=${script.getId()})}" method="post"
+              onsubmit="return confirm(this.dataset.confirm)"
+              th:data-confirm="#{admin.scriptsCatalog.delete.confirm}">
+            <button type="submit" class="link-button danger on-light"
+                    th:text="#{admin.scriptsCatalog.delete}">Удалить скрипт</button>
+        </form>
+    </section>
+
+    <div class="toolbar">
+        <a class="link" th:href="@{/admin/scripts}" th:text="#{common.back}">Назад</a>
+    </div>
+</main>
+</body>
+</html>

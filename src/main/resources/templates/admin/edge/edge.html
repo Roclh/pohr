@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head(#{admin.edge.title})}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<nav th:replace="~{fragments/layout :: crumbs('admin.edge.title', null, null)}"></nav>
+
+<main class="container">
+    <h1 th:text="#{admin.edge.title}">Edge</h1>
+
+    <div th:if="${successMessage}" class="alert success" th:text="#{${successMessage}}"></div>
+    <div th:if="${errorMessage}" class="alert error" th:text="${errorMessage}"></div>
+
+    <p class="muted" th:text="#{admin.edge.text}"></p>
+
+    <div class="toolbar">
+        <div>
+            <a class="button" th:href="@{/admin/edge/config}" th:text="#{admin.edge.config}">Config</a>
+            <a class="button" th:href="@{/admin/edge/routes}" th:text="#{admin.edge.routes}">Routes</a>
+            <a class="button" th:href="@{/admin/edge/sites}" th:text="#{admin.edge.sites}">Sites</a>
+        </div>
+        <form th:action="@{/admin/edge/apply}" method="post" class="inline">
+            <button type="submit" th:text="#{admin.edge.apply}">Apply now</button>
+        </form>
+    </div>
+
+    <section class="card">
+        <h2>nginx stream</h2>
+        <p>
+            <span th:if="${status.nginxRunning()}" class="badge enabled"
+                  th:text="#{admin.xray.running}">running</span>
+            <span th:unless="${status.nginxRunning()}" class="badge stopped"
+                  th:text="#{admin.xray.stopped}">stopped</span>
+            <span th:unless="${status.nginxInstalled()}" class="badge user"
+                  th:text="#{admin.edge.notInstalled}">not installed</span>
+        </p>
+        <p th:if="${status.nginxRunning()}">
+            <span th:text="#{admin.xray.pid}">PID:</span>
+            <code th:text="${status.nginxPid()}">1234</code> ·
+            <span th:text="#{admin.xray.started}">started at</span>
+            <code th:text="${status.nginxStartedAt()}">—</code>
+        </p>
+        <div class="form-actions">
+            <form th:action="@{/admin/edge/nginx/start}" method="post" class="inline">
+                <button type="submit" th:disabled="${status.nginxRunning()}"
+                        th:text="#{admin.xray.start}">Start</button>
+            </form>
+            <form th:action="@{/admin/edge/nginx/stop}" method="post" class="inline">
+                <button type="submit" th:disabled="${!status.nginxRunning()}"
+                        th:text="#{admin.xray.stop}">Stop</button>
+            </form>
+            <form th:action="@{/admin/edge/nginx/restart}" method="post" class="inline">
+                <button type="submit" th:disabled="${!status.nginxRunning()}"
+                        th:text="#{admin.xray.restart}">Restart</button>
+            </form>
+        </div>
+    </section>
+
+    <section class="card">
+        <h2>Caddy</h2>
+        <p>
+            <span th:if="${status.caddyRunning()}" class="badge enabled"
+                  th:text="#{admin.xray.running}">running</span>
+            <span th:unless="${status.caddyRunning()}" class="badge stopped"
+                  th:text="#{admin.xray.stopped}">stopped</span>
+            <span th:unless="${status.caddyInstalled()}" class="badge user"
+                  th:text="#{admin.edge.notInstalled}">not installed</span>
+        </p>
+        <p th:if="${status.caddyRunning()}">
+            <span th:text="#{admin.xray.pid}">PID:</span>
+            <code th:text="${status.caddyPid()}">1234</code> ·
+            <span th:text="#{admin.xray.started}">started at</span>
+            <code th:text="${status.caddyStartedAt()}">—</code>
+        </p>
+        <div class="form-actions">
+            <form th:action="@{/admin/edge/caddy/start}" method="post" class="inline">
+                <button type="submit" th:disabled="${status.caddyRunning()}"
+                        th:text="#{admin.xray.start}">Start</button>
+            </form>
+            <form th:action="@{/admin/edge/caddy/stop}" method="post" class="inline">
+                <button type="submit" th:disabled="${!status.caddyRunning()}"
+                        th:text="#{admin.xray.stop}">Stop</button>
+            </form>
+            <form th:action="@{/admin/edge/caddy/restart}" method="post" class="inline">
+                <button type="submit" th:disabled="${!status.caddyRunning()}"
+                        th:text="#{admin.xray.restart}">Restart</button>
+            </form>
+        </div>
+    </section>
+
+    <section class="card">
+        <h2 th:text="#{admin.edge.ports}">Ports</h2>
+        <p><code th:text="'stream: ' + ${status.streamPort()}"></code></p>
+        <p><code th:text="'http:   ' + ${status.httpPort()}"></code></p>
+        <p><code th:text="'https:  ' + ${status.httpsPort()}"></code></p>
+        <p><code th:text="'routes: ' + ${status.routeCount()} + ' / sites: ' + ${status.siteCount()}"></code></p>
+    </section>
+
+    <section class="card">
+        <h2>nginx logs</h2>
+        <div th:replace="~{fragments/layout :: logViewer('/ws/nginx-logs', ${nginxLogs}, null)}"></div>
+    </section>
+
+    <section class="card">
+        <h2>caddy logs</h2>
+        <div th:replace="~{fragments/layout :: logViewer('/ws/caddy-logs', ${caddyLogs}, null)}"></div>
+    </section>
+</main>
+</body>
+</html>

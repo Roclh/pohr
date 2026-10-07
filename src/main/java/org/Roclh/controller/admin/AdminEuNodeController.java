@@ -45,13 +45,13 @@ public class AdminEuNodeController {
                         .map(EuNodeDto::from)
                         .toList());
         model.addAttribute("nodes", nodes);
-        return "admin/eu-nodes";
+        return "admin/eu/eu-nodes";
     }
 
     @GetMapping("/new")
     public String newForm(Model model) {
         model.addAttribute("form", new EuNodeForm("", 60));
-        return "admin/eu-node-form";
+        return "admin/eu/eu-node-form";
     }
 
     @PostMapping
@@ -64,7 +64,7 @@ public class AdminEuNodeController {
             binding.rejectValue("name", "validation.node.name.taken");
         }
         if (binding.hasErrors()) {
-            return "admin/eu-node-form";
+            return "admin/eu/eu-node-form";
         }
         UUID userId = findUserId(auth);
         EnrollmentToken token = nodeService.createEnrollmentToken(
@@ -89,7 +89,7 @@ public class AdminEuNodeController {
         model.addAttribute("token", et);
         model.addAttribute("enrollCommand", enrollCmd);
         model.addAttribute("expiresAt", et.getExpiresAt());
-        return "admin/eu-node-enroll";
+        return "admin/eu/eu-node-enroll";
     }
 
     @GetMapping("/{id}")
@@ -101,7 +101,7 @@ public class AdminEuNodeController {
         }
         model.addAttribute("node", EuNodeDto.from(node));
         model.addAttribute("rawNode", node);
-        return "admin/eu-node-detail";
+        return "admin/eu/eu-node-detail";
     }
 
     @PostMapping("/{id}/delete")

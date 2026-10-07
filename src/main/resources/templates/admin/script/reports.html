@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head(#{admin.scriptsCatalog.reports})}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<nav th:replace="~{fragments/layout :: crumbs('admin.scriptsCatalog.reports', 'admin.scriptsCatalog.title', '/admin/scripts')}"></nav>
+
+<main class="container">
+    <h1 th:text="#{admin.scriptsCatalog.reports}">Отчёты об ошибках</h1>
+
+    <div th:if="${successMessage}" class="alert success" th:text="#{${successMessage}}"></div>
+
+    <div class="toolbar">
+        <div>
+            <a class="link" th:href="@{/admin/scripts/reports}"
+               th:classappend="${filterStatus == null} ? 'active'">Все</a>
+            <a class="link" th:href="@{/admin/scripts/reports(status='NEW')}"
+               th:classappend="${filterStatus != null and filterStatus.name() == 'NEW'} ? 'active'">Новые</a>
+            <a class="link" th:href="@{/admin/scripts/reports(status='IN_PROGRESS')}"
+               th:classappend="${filterStatus != null and filterStatus.name() == 'IN_PROGRESS'} ? 'active'">В работе</a>
+        </div>
+        <a class="link" th:href="@{/admin/scripts}" th:text="#{common.back}">Назад</a>
+    </div>
+
+    <table class="table" th:if="${!#lists.isEmpty(reports)}">
+        <thead>
+        <tr>
+            <th th:text="#{admin.scriptsCatalog.received}">Получен</th>
+            <th th:text="#{admin.scriptsCatalog.script}">Скрипт</th>
+            <th th:text="#{admin.scriptsCatalog.version}">Версия</th>
+            <th th:text="#{admin.scriptsCatalog.stage}">Этап</th>
+            <th th:text="#{admin.scriptsCatalog.status}">Статус</th>
+            <th class="actions"></th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="r : ${reports}">
+            <td data-label="Получен"
+                th:text="${#strings.substringBefore(r.getReceivedAt().toString(), '.')}">
+                2026-10-07T15:00:00
+            </td>
+            <td data-label="Скрипт"><code th:text="${r.getRootScriptId()}">—</code></td>
+            <td data-label="Версия" th:text="${r.getRootScriptVersion()} ?: '—'">1.5</td>
+            <td data-label="Этап" th:text="${r.getStage()} ?: '—'">patch-config</td>
+            <td data-label="Статус">
+                <span class="badge"
+                      th:classappend="${r.getStatus().name() == 'NEW' ? 'disabled'
+                                     : r.getStatus().name() == 'RESOLVED' ? 'enabled' : 'user'}"
+                      th:text="${r.getStatus().name()}">NEW</span>
+            </td>
+            <td class="actions">
+                <a class="link" th:href="@{/admin/scripts/reports/{id}(id=${r.getId()})}"
+                   th:text="#{admin.scriptsCatalog.open}">Открыть</a>
+            </td>
+        </tr>
+        </tbody>
+    </table>
+
+    <p th:if="${#lists.isEmpty(reports)}" class="muted"
+       th:text="#{admin.scriptsCatalog.noReports}">Отчётов нет.</p>
+</main>
+</body>
+</html>

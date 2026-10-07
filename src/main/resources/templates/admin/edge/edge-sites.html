@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head(#{admin.edge.sites})}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<nav th:replace="~{fragments/layout :: crumbs('admin.edge.sites', 'admin.edge.title', '/admin/edge')}"></nav>
+
+<main class="container">
+    <h1 th:text="#{admin.edge.sites}">Caddy sites</h1>
+
+    <div th:if="${successMessage}" class="alert success" th:text="#{${successMessage}}"></div>
+    <div th:if="${errorMessage}" class="alert error" th:text="${errorMessage}"></div>
+
+    <p class="muted" th:text="#{admin.edge.sites.text}"></p>
+
+    <div class="toolbar">
+        <a class="button" th:href="@{/admin/edge/sites/new}" th:text="#{admin.edge.sites.new}">New site</a>
+    </div>
+
+    <table class="table" th:if="${!#lists.isEmpty(sites)}">
+        <thead>
+        <tr>
+            <th th:text="#{admin.edge.site.domain}">Domain</th>
+            <th>→</th>
+            <th th:text="#{admin.edge.site.upstream}">Upstream</th>
+            <th th:text="#{admin.edge.site.tls}">TLS</th>
+            <th th:text="#{admin.edge.site.enabled}">Enabled</th>
+            <th class="actions" th:text="#{clientConfig.list.actions}">Actions</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="s : ${sites}">
+            <td data-label="Domain"><code th:text="${s.domain()}">pohr-roclh.xyz</code></td>
+            <td data-label="Type">
+                <span class="badge user" th:text="${s.siteType()}">proxy</span>
+            </td>
+            <td data-label="Target">
+                <code th:if="${s.siteType() == 'proxy'}"
+                      th:text="${s.upstreamHost()} + ':' + ${s.upstreamPort()}">127.0.0.1:8080</code>
+                <code th:if="${s.siteType() == 'redirect'}"
+                      th:text="'→ ' + ${s.redirectTarget()}">→ https://...</code>
+            </td>
+            <td data-label="Bind" th:text="${s.bindAddress()} ?: '—'">127.0.0.1</td>
+            <td data-label="TLS">
+                <span class="badge user" th:text="${s.tlsMode()}">acme</span>
+            </td>
+            <td data-label="Enabled">
+        <span class="badge" th:classappend="${s.enabled()} ? 'enabled' : 'disabled'"
+              th:text="${s.enabled()} ? #{common.yes} : #{common.no}">yes</span>
+            </td>
+            <td class="actions">
+                <a class="link" th:href="@{/admin/edge/sites/{id}/edit(id=${s.id()})}"
+                   th:text="#{clientConfig.list.edit}">Edit</a>
+                <form th:action="@{/admin/edge/sites/{id}/toggle(id=${s.id()})}" method="post" class="inline">
+                    <button type="submit" class="link-button on-light"
+                            th:text="${s.enabled()} ? #{subscription.list.disable} : #{subscription.list.enable}">Toggle
+                    </button>
+                </form>
+                <form th:action="@{/admin/edge/sites/{id}/delete(id=${s.id()})}" method="post" class="inline"
+                      onsubmit="return confirm('Delete this site?')">
+                    <button type="submit" class="link-button danger on-light"
+                            th:text="#{script.list.delete}">Delete
+                    </button>
+                </form>
+            </td>
+        </tr>
+        </tbody>
+    </table>
+    <p th:if="${#lists.isEmpty(sites)}" class="muted"
+       th:text="#{admin.edge.sites.empty}">No sites yet</p>
+</main>
+</body>
+</html>

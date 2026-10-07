@@ -28,7 +28,6 @@ public class ClientScriptService {
     private static final String BUNDLED_PATTERN = "classpath*:scripts/*";
     private static final String BUNDLED_PREFIX = "classpath:scripts/";
     private static final Charset CP866 = Charset.forName("Cp866");
-    private static final int HISTORY_LIMIT = 10;
 
     @Value("${pohr.scripts.home}")
     private String scriptsHome;
@@ -61,6 +60,14 @@ public class ClientScriptService {
         }
     }
 
+    public byte[] readBundledBytes(String name) throws IOException {
+        Resource bundled = resourceResolver.getResource(BUNDLED_PREFIX + name);
+        if (!bundled.exists()) {
+            throw new IllegalArgumentException("No bundled version of '" + name + "'");
+        }
+        return bundled.getInputStream().readAllBytes();
+    }
+
     public List<ScriptInfo> list() {
         Path home = homePath();
         if (!Files.exists(home)) return new ArrayList<>();
@@ -82,41 +89,6 @@ public class ClientScriptService {
 
     public String read(String name) throws IOException {
         return Files.readString(resolve(name), StandardCharsets.UTF_8);
-    }
-
-    public void write(String name, String content) throws IOException {
-        Path path = resolve(name);
-        Files.createDirectories(path.getParent());
-        if (Files.exists(path)) {
-            backup(path);
-        }
-        String normalized = normalizeLineEndings(name, content);
-        Files.writeString(path, normalized, StandardCharsets.UTF_8);
-        log.info("Script '{}' saved ({} bytes)", name, normalized.length());
-    }
-
-    /** .sh — LF; .bat/.cmd/.ps1 — CRLF; остальное — как есть. */
-    private String normalizeLineEndings(String name, String content) {
-        String lower = name.toLowerCase();
-        String lf = content.replace("\r\n", "\n").replace("\r", "\n");
-        if (lower.endsWith(".sh")) {
-            return lf;
-        }
-        if (lower.endsWith(".bat") || lower.endsWith(".cmd") || lower.endsWith(".ps1")) {
-            return lf.replace("\n", "\r\n");
-        }
-        return content;
-    }
-
-    public void reset(String name) throws IOException {
-        Resource bundled = resourceResolver.getResource(BUNDLED_PREFIX + name);
-        if (!bundled.exists()) {
-            throw new IllegalArgumentException("No bundled version of '" + name + "'");
-        }
-        Path path = resolve(name);
-        if (Files.exists(path)) backup(path);
-        Files.write(path, bundled.getInputStream().readAllBytes());
-        log.info("Script '{}' reset to bundled version", name);
     }
 
     public void delete(String name) throws IOException {
@@ -185,24 +157,6 @@ public class ClientScriptService {
 
     private boolean isSafeName(String name) {
         return SAFE_NAME.matcher(name).matches() && name.contains(".");
-    }
-
-    private void backup(Path path) throws IOException {
-        Path hist = path.getParent().resolve(".history");
-        Files.createDirectories(hist);
-        String ts = Instant.now().toString().replace(":", "-");
-        Path bak = hist.resolve(path.getFileName() + "." + ts + ".bak");
-        Files.copy(path, bak, StandardCopyOption.REPLACE_EXISTING);
-
-        try (var stream = Files.list(hist)) {
-            var files = stream
-                    .filter(p -> p.getFileName().toString().startsWith(path.getFileName() + "."))
-                    .sorted(Comparator.comparing((Path p) -> p.getFileName().toString()).reversed())
-                    .toList();
-            for (int i = HISTORY_LIMIT; i < files.size(); i++) {
-                Files.deleteIfExists(files.get(i));
-            }
-        }
     }
 
     private ScriptInfo toInfo(Path p) {

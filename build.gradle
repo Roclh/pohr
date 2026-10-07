@@ -49,6 +49,8 @@ graalvmNative {
             buildArgs.add('--no-fallback')
             buildArgs.add('-H:+ReportExceptionStackTraces')
             buildArgs.add('-H:+AddAllCharsets')
+            buildArgs.add('-J-Xmx12g')                // было 4g
+            buildArgs.add('-H:NumberOfThreads=20')    // явно, чтобы плагин не переопределил
             runtimeArgs.add('--enable-native-access=ALL-UNNAMED')
         }
     }

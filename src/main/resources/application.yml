@@ -39,6 +39,9 @@ pohr:
     tunnel-check-url: https://api.ipify.org
   invites:
     cleanup-interval: 600000
+  edge:
+    home: ${EDGE_HOME:/app/xray}      # тот же volume, что xray
+    auto-start: ${EDGE_AUTO_START:true}
   metrics:
     interval-ms: 60000
     initial-delay-ms: 15000
@@ -47,10 +50,10 @@ pohr:
     socks-port: 10809
     metrics-port: 9400
     install:
-      public-port: ${TELEMT_PUBLIC_PORT:443}
       version: ${TELEMT_VERSION:latest}
       download-url-template: ${TELEMT_DOWNLOAD_URL:https://github.com/telemt/telemt/releases/download/{version}/telemt-{platform}.tar.gz}
       fallback-url-template: ${TELEMT_FALLBACK_URL:}
+      latest-api: ${TELEMT_LATEST_API:https://api.github.com/repos/telemt/telemt/releases/latest}
 
 xray:
   server:

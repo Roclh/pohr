@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head(#{admin.edge.routes})}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<nav th:replace="~{fragments/layout :: crumbs('admin.edge.routes', 'admin.edge.title', '/admin/edge')}"></nav>
+
+<main class="container">
+    <h1 th:text="#{admin.edge.routes}">SNI routes</h1>
+
+    <div th:if="${successMessage}" class="alert success" th:text="#{${successMessage}}"></div>
+    <div th:if="${errorMessage}" class="alert error" th:text="${errorMessage}"></div>
+
+    <p class="muted" th:text="#{admin.edge.routes.text}"></p>
+
+    <div class="toolbar">
+        <a class="button" th:href="@{/admin/edge/routes/new}" th:text="#{admin.edge.routes.new}">New route</a>
+    </div>
+
+    <table class="table" th:if="${!#lists.isEmpty(routes)}">
+        <thead>
+        <tr>
+            <th th:text="#{admin.edge.route.sni}">SNI</th>
+            <th>→</th>
+            <th th:text="#{admin.edge.route.target}">Target</th>
+            <th th:text="#{admin.edge.route.order}">Order</th>
+            <th th:text="#{admin.edge.route.enabled}">Enabled</th>
+            <th class="actions" th:text="#{clientConfig.list.actions}">Actions</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="r : ${routes}">
+            <td data-label="SNI"><code th:text="${r.sni()}">xfit.ru</code></td>
+            <td>→</td>
+            <td data-label="Target">
+                <code th:text="${r.targetHost()} + ':' + ${r.targetPort()}">127.0.0.1:8443</code>
+            </td>
+            <td data-label="Order" th:text="${r.sortOrder()}">100</td>
+            <td data-label="Enabled">
+                <span class="badge" th:classappend="${r.enabled()} ? 'enabled' : 'disabled'"
+                      th:text="${r.enabled()} ? #{common.yes} : #{common.no}">yes</span>
+            </td>
+            <td class="actions">
+                <a class="link" th:href="@{/admin/edge/routes/{id}/edit(id=${r.id()})}"
+                   th:text="#{clientConfig.list.edit}">Edit</a>
+                <form th:action="@{/admin/edge/routes/{id}/toggle(id=${r.id()})}" method="post" class="inline">
+                    <button type="submit" class="link-button on-light"
+                            th:text="${r.enabled()} ? #{subscription.list.disable} : #{subscription.list.enable}">Toggle</button>
+                </form>
+                <form th:action="@{/admin/edge/routes/{id}/delete(id=${r.id()})}" method="post" class="inline"
+                      onsubmit="return confirm('Delete this route?')">
+                    <button type="submit" class="link-button danger on-light"
+                            th:text="#{script.list.delete}">Delete</button>
+                </form>
+            </td>
+        </tr>
+        </tbody>
+    </table>
+    <p th:if="${#lists.isEmpty(routes)}" class="muted"
+       th:text="#{admin.edge.routes.empty}">No routes yet</p>
+</main>
+</body>
+</html>

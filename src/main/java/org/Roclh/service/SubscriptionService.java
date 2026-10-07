@@ -87,8 +87,4 @@ public class SubscriptionService {
     public boolean existsByUserId(UUID userId) {
         return repository.existsByUserId(userId);
     }
-
-    public Optional<Subscription> findByUserId(UUID userId) {
-        return repository.findByUserId(userId);
-    }
 }

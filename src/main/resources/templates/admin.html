@@ -24,6 +24,12 @@
             <span class="admin-card-arrow">↗</span>
         </a>
 
+        <a class="admin-card" th:href="@{/admin/edge}">
+            <h3 th:text="#{admin.edge.title}">Edge</h3>
+            <p class="admin-card-desc" th:text="#{admin.edge.text}">nginx stream + Caddy</p>
+            <span class="admin-card-arrow">↗</span>
+        </a>
+
         <a class="admin-card" th:href="@{/admin/xray/configs}">
             <h3 th:text="#{admin.xray.configs.title}">Xray configurations</h3>
             <p class="admin-card-desc" th:text="#{admin.xray.configs.text}">
@@ -63,11 +69,10 @@
             </p>
             <span class="admin-card-arrow">↗</span>
         </a>
-
-        <a class="admin-card" th:href="@{/admin/client-scripts}">
-            <h3 th:text="#{admin.scripts.title}">Client scripts</h3>
-            <p class="admin-card-desc" th:text="#{admin.scripts.text}">
-                Installer scripts (.bat/.ps1/.sh) stored on volume.
+        <a class="admin-card" th:href="@{/admin/scripts}">
+            <h3 th:text="#{admin.scriptsCatalog.title}">Скрипты</h3>
+            <p class="admin-card-desc" th:text="#{admin.scriptsCatalog.text}">
+                Управление скриптами и отчёты об ошибках.
             </p>
             <span class="admin-card-arrow">↗</span>
         </a>
@@ -87,7 +92,6 @@
             </p>
             <span class="admin-card-arrow">↗</span>
         </a>
-
     </div>
 </main>
 

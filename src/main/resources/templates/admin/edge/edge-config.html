@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head(#{admin.edge.config})}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<nav th:replace="~{fragments/layout :: crumbs('admin.edge.config', 'admin.edge.title', '/admin/edge')}"></nav>
+
+<main class="container">
+    <h1 th:text="#{admin.edge.config}">Edge config</h1>
+
+    <div th:if="${successMessage}" class="alert success" th:text="#{${successMessage}}"></div>
+    <div th:if="${errorMessage}" class="alert error" th:text="${errorMessage}"></div>
+
+    <form th:action="@{/admin/edge/config}" th:object="${form}" method="post" class="form card">
+
+        <div class="field" th:classappend="${#fields.hasErrors('streamPort')} ? 'has-error'">
+            <label for="streamPort" th:text="#{admin.edge.config.streamPort}">Stream port</label>
+            <input type="number" id="streamPort" th:field="*{streamPort}" min="1" max="65535">
+            <p class="hint" th:text="#{admin.edge.config.streamPort.hint}"></p>
+            <p class="field-error" th:if="${#fields.hasErrors('streamPort')}" th:errors="*{streamPort}">err</p>
+        </div>
+
+        <div class="field" th:classappend="${#fields.hasErrors('httpPort')} ? 'has-error'">
+            <label for="httpPort" th:text="#{admin.edge.config.httpPort}">HTTP port (Caddy)</label>
+            <input type="number" id="httpPort" th:field="*{httpPort}" min="1" max="65535">
+            <p class="field-error" th:if="${#fields.hasErrors('httpPort')}" th:errors="*{httpPort}">err</p>
+        </div>
+
+        <div class="field" th:classappend="${#fields.hasErrors('httpsPort')} ? 'has-error'">
+            <label for="httpsPort" th:text="#{admin.edge.config.httpsPort}">HTTPS port (Caddy, behind stream)</label>
+            <input type="number" id="httpsPort" th:field="*{httpsPort}" min="1" max="65535">
+            <p class="field-error" th:if="${#fields.hasErrors('httpsPort')}" th:errors="*{httpsPort}">err</p>
+        </div>
+
+        <div class="field" th:classappend="${#fields.hasErrors('fallbackTarget')} ? 'has-error'">
+            <label for="fallbackTarget" th:text="#{admin.edge.config.fallback}">Fallback target</label>
+            <input type="text" id="fallbackTarget" th:field="*{fallbackTarget}" placeholder="127.0.0.1:8444">
+            <p class="hint" th:text="#{admin.edge.config.fallback.hint}"></p>
+            <p class="field-error" th:if="${#fields.hasErrors('fallbackTarget')}" th:errors="*{fallbackTarget}">err</p>
+        </div>
+
+        <div class="field" th:classappend="${#fields.hasErrors('workerProcesses')} ? 'has-error'">
+            <label for="workerProcesses" th:text="#{admin.edge.config.workers}">worker_processes</label>
+            <input type="text" id="workerProcesses" th:field="*{workerProcesses}" placeholder="auto">
+            <p class="field-error" th:if="${#fields.hasErrors('workerProcesses')}" th:errors="*{workerProcesses}">err</p>
+        </div>
+
+        <div class="field" th:classappend="${#fields.hasErrors('workerConnections')} ? 'has-error'">
+            <label for="workerConnections" th:text="#{admin.edge.config.workerConnections}">worker_connections</label>
+            <input type="number" id="workerConnections" th:field="*{workerConnections}" min="64" max="65535">
+            <p class="field-error" th:if="${#fields.hasErrors('workerConnections')}" th:errors="*{workerConnections}">err</p>
+        </div>
+
+        <div class="field" th:classappend="${#fields.hasErrors('streamProxyTimeout')} ? 'has-error'">
+            <label for="streamProxyTimeout" th:text="#{admin.edge.config.proxyTimeout}">proxy_timeout</label>
+            <input type="text" id="streamProxyTimeout" th:field="*{streamProxyTimeout}" placeholder="300s">
+            <p class="field-error" th:if="${#fields.hasErrors('streamProxyTimeout')}" th:errors="*{streamProxyTimeout}">err</p>
+        </div>
+
+        <div class="field" th:classappend="${#fields.hasErrors('streamConnectTimeout')} ? 'has-error'">
+            <label for="streamConnectTimeout" th:text="#{admin.edge.config.connectTimeout}">proxy_connect_timeout</label>
+            <input type="text" id="streamConnectTimeout" th:field="*{streamConnectTimeout}" placeholder="5s">
+            <p class="field-error" th:if="${#fields.hasErrors('streamConnectTimeout')}" th:errors="*{streamConnectTimeout}">err</p>
+        </div>
+
+        <div class="field" th:classappend="${#fields.hasErrors('autoHttps')} ? 'has-error'">
+            <label for="autoHttps" th:text="#{admin.edge.config.autoHttps}">auto_https</label>
+            <select id="autoHttps" th:field="*{autoHttps}">
+                <option value="on">on</option>
+                <option value="disable_redirects">disable_redirects</option>
+                <option value="off">off</option>
+                <option value="disable_certs">disable_certs</option>
+            </select>
+            <p class="hint" th:text="#{admin.edge.config.autoHttps.hint}"></p>
+            <p class="field-error" th:if="${#fields.hasErrors('autoHttps')}" th:errors="*{autoHttps}">err</p>
+        </div>
+
+        <div class="field">
+            <label for="extraStreamDirectives" th:text="#{admin.edge.config.extraStream}">Extra stream directives</label>
+            <textarea id="extraStreamDirectives" th:field="*{extraStreamDirectives}"
+                      rows="6" spellcheck="false" class="config-editor"></textarea>
+        </div>
+
+        <div class="field">
+            <label for="extraHttpDirectives" th:text="#{admin.edge.config.extraHttp}">Extra http directives</label>
+            <textarea id="extraHttpDirectives" th:field="*{extraHttpDirectives}"
+                      rows="6" spellcheck="false" class="config-editor"></textarea>
+            <p class="hint" th:text="#{admin.edge.config.extraHttp.hint}"></p>
+        </div>
+
+        <div class="field">
+            <label for="extraGlobalDirectives" th:text="#{admin.edge.config.extraGlobal}">Extra global directives (Caddy)</label>
+            <textarea id="extraGlobalDirectives" th:field="*{extraGlobalDirectives}"
+                      rows="6" spellcheck="false" class="config-editor"></textarea>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" th:text="#{user.form.save}">Save & Apply</button>
+            <a class="link" th:href="@{/admin/edge}" th:text="#{user.form.cancel}">Cancel</a>
+        </div>
+    </form>
+</main>
+</body>
+</html>

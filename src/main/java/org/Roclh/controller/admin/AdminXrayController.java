@@ -4,7 +4,6 @@ import lombok.RequiredArgsConstructor;
 import org.Roclh.model.Subscription;
 import org.Roclh.model.User;
 import org.Roclh.model.dto.LogFilterOption;
-import org.Roclh.model.dto.XrayClientOption;
 import org.Roclh.service.SubscriptionService;
 import org.Roclh.service.UserService;
 import org.Roclh.service.xray.XrayInstaller;
@@ -47,7 +46,7 @@ public class AdminXrayController {
             clients.add(new LogFilterOption(s.getId().toString(), username));
         }
         model.addAttribute("clients", clients);
-        return "admin/xray";
+        return "admin/xray/xray";
     }
 
     @PostMapping("/start")

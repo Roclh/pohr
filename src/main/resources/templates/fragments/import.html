@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<body>
+
+<!--
+  Deep-link кнопка (для мобильных клиентов).
+-->
+<th:block th:fragment="button(visible, title, descKey, deeplink, fallbackIos, fallbackAndroid, client)">
+    <button th:if="${visible}"
+            type="button"
+            class="import-panel"
+            th:attr="data-deeplink=${deeplink},
+                     data-fallback-ios=${fallbackIos},
+                     data-fallback-android=${fallbackAndroid},
+                     data-client=${client}">
+        <div class="import-panel-title" th:text="${title}">Title</div>
+        <div class="import-panel-desc" th:text="${#messages.msg(descKey)}">Desc</div>
+        <div class="import-panel-arrow">→</div>
+    </button>
+</th:block>
+
+<!--
+  Файл-скачивание с eye-иконкой для preview и бейджем обновления.
+  previewUrl == null  → без иконки.
+  hasUpdate / hasMajor → бейдж внизу панели.
+-->
+<th:block th:fragment="download(visible, title, descKey, href, previewUrl, hasUpdate, hasMajor)">
+    <div th:if="${visible}" class="import-panel-wrap">
+        <a class="import-panel" th:href="${href}" style="width: 100%;">
+            <div class="import-panel-title" th:text="${title}">Title</div>
+            <div class="import-panel-desc" th:text="${#messages.msg(descKey)}">Desc</div>
+            <div class="import-panel-arrow">→</div>
+        </a>
+
+        <a th:if="${previewUrl != null}"
+           class="preview-eye"
+           th:href="${previewUrl}"
+           th:title="#{home.preview.show}"
+           th:attr="aria-label=#{home.preview.show}">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none"
+                 stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                <circle cx="12" cy="12" r="3"/>
+            </svg>
+        </a>
+
+        <div th:if="${hasUpdate}"
+             class="update-badge"
+             th:classappend="${hasMajor} ? 'major' : 'minor'">
+            <span th:if="${hasMajor}" th:text="#{home.update.major}">Важное обновление</span>
+            <span th:unless="${hasMajor}" th:text="#{home.update.minor}">Доступно обновление</span>
+        </div>
+    </div>
+</th:block>
+
+</body>
+</html>

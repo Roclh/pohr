@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head(#{admin.scriptsCatalog.title})}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<nav th:replace="~{fragments/layout :: crumbs('admin.scriptsCatalog.title', null, null)}"></nav>
+
+<main class="container">
+    <h1 th:text="#{admin.scriptsCatalog.title}">Скрипты</h1>
+
+    <div th:if="${successMessage}" class="alert success" th:text="#{${successMessage}}"></div>
+    <div th:if="${errorMessage}" class="alert error" th:text="${errorMessage}"></div>
+
+    <div class="toolbar">
+        <div>
+            <a class="button" th:href="@{/admin/scripts/new}"
+               th:text="#{admin.scriptsCatalog.new}">Новый скрипт</a>
+            <a class="button" th:href="@{/admin/scripts/reports}"
+               th:text="#{admin.scriptsCatalog.reports}">Отчёты об ошибках</a>
+        </div>
+        <div class="muted">
+            <span th:text="#{admin.scriptsCatalog.newErrors}">Новых отчётов:</span>
+            <b th:text="${newErrorCount}">0</b>
+            <span>·</span>
+            <span th:text="#{admin.scriptsCatalog.errors24h}">за 24ч:</span>
+            <b th:text="${errors24h}">0</b>
+        </div>
+    </div>
+
+    <table class="table" th:if="${!#lists.isEmpty(scripts)}">
+        <thead>
+        <tr>
+            <th th:text="#{admin.scriptsCatalog.name}">Имя</th>
+            <th th:text="#{admin.scriptsCatalog.version}">Версия</th>
+            <th th:text="#{admin.scriptsCatalog.platform}">Платформа</th>
+            <th th:text="#{admin.scriptsCatalog.deps}">Зависимости</th>
+            <th class="actions" th:text="#{admin.scriptsCatalog.actions}">Действия</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="r : ${scripts}">
+            <td data-label="Имя">
+                <code th:text="${r.script().getName()}">v2rayn-setup.bat</code>
+                <span th:if="${r.script().isEntrypoint()}" class="script-entry-badge">entry</span>
+                <span th:unless="${r.script().isEnabled()}" class="badge disabled">disabled</span>
+            </td>
+            <td data-label="Версия">
+                <span class="script-version" th:if="${r.activeVersion() != null}"
+                      th:text="${r.activeVersion().getVersion()}">1.5</span>
+                <span th:if="${r.activeVersion() == null}" class="muted">—</span>
+            </td>
+            <td data-label="Платформа" th:text="${r.script().getPlatform()}">windows</td>
+            <td data-label="Зависимости">
+                <span th:if="${r.deps().isEmpty()}" class="muted">—</span>
+                <code th:each="d : ${r.deps()}" th:text="${d}"
+                      style="margin-right:6px;">pohr-utils.ps1</code>
+            </td>
+            <td class="actions">
+                <a class="link" th:href="@{/admin/scripts/{id}(id=${r.script().getId()})}"
+                   th:text="#{admin.scriptsCatalog.detail}">Детали</a>
+                <a class="link" th:href="@{/admin/scripts/{id}/edit(id=${r.script().getId()})}"
+                   th:text="#{admin.scriptsCatalog.edit}">Редактировать</a>
+            </td>
+        </tr>
+        </tbody>
+    </table>
+
+    <p th:if="${#lists.isEmpty(scripts)}" class="muted"
+       th:text="#{admin.scriptsCatalog.empty}">Скриптов пока нет.</p>
+</main>
+</body>
+</html>

@@ -1,10 +1,11 @@
+```markdown
 # Pohr — система управления VPN-инфраструктурой
 
 ## 📌 Что это
 
-**Pohr** (`roclh/pohr`) — self-hosted платформа для раздачи VPN-доступа через подписки. **RU-мост** (зеркало, оркестратор, UI) + **EU-узел** (выходной Xray). Плюс **MTProto-прокси для Telegram** (telemt) поверх EU-туннеля.
+**Pohr** (`roclh/pohr`) — self-hosted платформа для раздачи VPN-доступа через подписки. **RU-мост** (UI/API/оркестрация/SQLite) + **EU-узел** (выходной Xray). Плюс **MTProto-прокси для Telegram** (telemt) поверх EU-туннеля.
 
-**Цель:** «нажал кнопку — всё работает», скрытно от DPI/РКН, конфигурирование через web UI.
+**Цель:** «нажал кнопку — всё работает», скрытно от DPI/РКН, конфигурирование через web UI, развёртывание одной командой.
 
 **Владелец:** Roclh (GitHub/Docker Hub — `roclh`).
 
@@ -12,71 +13,72 @@
 
 ## 🎯 Целевая картинка
 
-1. **Простота развёртывания.** Один скрипт на RU, EU — одной curl-командой.
-2. **Скрытность.** Xray маскируется под Reality, telemt — под чужой домен (cover domain) через fake-TLS.
-3. **Универсальность.** Админ через UI правит Xray-конфиг, юзеров, подписки, обновляет Xray/telemt.
-4. **Отказоустойчивость.** При блокировке EU — новый узел, клиентский конфиг не меняется.
-5. **Низкое потребление.** Native image ~60–140 МБ RSS, помещается на VPS 512 МБ.
-6. **Минимум ручной работы.** Подписки и TG-секреты создаются автоматически.
+1. **Развёртывание одной командой.** `install.sh` поднимает всё, включая edge-слой (nginx+caddy), никаких `apt install` на хосте.
+2. **Скрытность.** Xray маскируется под Reality, telemt — под cover domain через fake-TLS, edge-слой в контейнере (не виден в `ps` хоста).
+3. **Универсальность.** Всё управляется через UI: Xray-конфиг, edge-маршруты, юзеры, подписки, TG, обновления.
+4. **Отказоустойчивость.** При блокировке EU — новый узел, клиентский конфиг не меняется (домен сохраняется).
+5. **Низкое потребление.** Native image ~240 МБ RSS всего стека, влезает на VPS 512 МБ.
+6. **Автоматизация.** Подписки, TG-секреты, edge-маршруты создаются автоматически.
 
 ---
 
 ## 🏗️ Архитектура
 
 ```
-VPN:      Клиент → RU-мост (Spring Boot Native + UI) → EU-узел (Xray) → интернет
-Telegram: Клиент → Nginx :443 (SNI=cover) → telemt :3128 → Xray SOCKS :10809 → eu outbound → TG DC
+VPN:      Клиент → Nginx stream :443 (SNI-mux) → Xray :8443 (Reality) → EU-узел → интернет
+Telegram: Клиент → Nginx stream :443 (SNI=cover) → telemt :3128 → Xray SOCKS :10809 → eu → TG DC
+UI:       Клиент → Nginx stream :443 (SNI=domain) → Caddy :8444 (ACME) → PoHR :8080
 ```
 
-**Роли:** RU — UI/API/SQLite/оркестрация. EU — Xray, принимает трафик от RU.
+**Всё в одном контейнере PoHR:**
+- Java-приложение (native image) — UI, API, оркестрация
+- Xray (child process) — Reality inbound + eu outbound
+- telemt (child process) — MTProto
+- nginx (child process) — stream SNI-mux на :443
+- Caddy (child process) — TLS-терминация + ACME на :8444
+
+**SNI-мультиплексирование**: nginx `ssl_preread on` + `map $ssl_preread_server_name` разводит по SNI на три backend'а. Правила — в БД (`edge_routes`), материализация в `nginx.conf`.
 
 ### Ключевые идеи
 
-- **Xray-конфиг в БД**, файл — материализация: инъекция `clients[]` из активных подписок, `eu` outbound, `healthcheck-socks`/`telemt-socks` inbounds, `routing`. Триггеры: старт, start/restart, `SubscriptionsChangedEvent`, изменение TG-конфига.
-- **`dematerialize()`** при сохранении через UI срезает `clients[]`, `healthcheck-socks`/`telemt-socks`, `eu` outbound и `routing` — чтобы в БД не накапливались дубли.
-- **Клиентские скрипты в volume.** Бандл в образе — эталон, volume `SCRIPTS_HOME` — рабочий. `.history/` до 10 версий.
+- **Xray-конфиг в БД**, файл — материализация: инъекция `clients[]`, `eu` outbound, `healthcheck-socks`/`telemt-socks` inbounds, `routing`. Триггеры: старт, start/restart, `SubscriptionsChangedEvent`, изменение TG-конфига.
+- **`dematerialize()`** срезает инъекции при сохранении — в БД не накапливаются дубли.
+- **Edge-конфиг в БД** (`edge_config` / `edge_routes` / `edge_sites`), `nginx.conf` и `Caddyfile` — материализация по событию `EdgeConfigChangedEvent` (AFTER_COMMIT).
 - **EU-ноды — pull-модель.** EU генерит Reality-ключи, RU видит только `publicKey`. Polling `/api/nodes/{id}/config` каждые 5 мин, health push. Версия синхронизируется через `X-Pohr-Xray-Version`.
-- **SNI-мультиплексирование (Nginx stream).** На :443 `ssl_preread` разводит по SNI: `xfit.ru` → Xray :8443, `pohr-roclh.xyz` → Caddy :8444, `<cover-domain>` → telemt :3128.
-- **Telegram MTProto (telemt).** Слушает :3128, весь трафик — через SOCKS5 Xray (`127.0.0.1:10809`). Routing: `telemt-socks → eu`. Per-user секреты 1:1 с `users`, CASCADE.
-- **Cover domain фетчится напрямую** — routing-правило `telemt-socks + <coverDomain> → direct` инжектится в `EuConfigService.buildRouting()`. Иначе TLS-fetch уходит через eu и упирается в RST (DPI на EU-стороне не пропускает RU-IP).
-- **Инвайты.** `InviteToken` (одноразовый, TTL), `/invite/{token}` → автосоздание user + subscription + автологин.
+- **Telegram MTProto.** Слушает :3128, весь трафик → SOCKS5 Xray (`127.0.0.1:10809`) → eu outbound. Per-user секреты 1:1 с `users`, CASCADE.
+- **Cover domain фетчится напрямую** — routing-правило `telemt-socks + <coverDomain> → direct` инжектится в `EuConfigService.buildRouting()`.
+- **Инвайты.** Одноразовый токен с TTL → автосоздание user + subscription + автологин.
 - **Client configs.** HTTP-заголовки подписки per User-Agent, longest match wins.
-- **Мониторинг.** `metric_samples` (1 точка/мин, retention 7 дней): pod cgroup CPU/RAM, JVM heap/threads, Xray/telemt RSS/CPU/IO. Графики — составные SVG (pod + xray + telemt линии, сетка, оси, легенда).
 
 ---
 
 ## ✅ Что сделано
 
-**Инфраструктура:** Java 25, SB 4.0.8, GraalVM Native, Docker multi-stage, профили dev/prod, `install.sh`.
+**Инфра:** Java 25, SB 4.0.8, GraalVM Native, Docker multistage, `install.sh`, профили dev/prod.
 
-**БД:** SQLite + Liquibase (SQL-миграции 001–010), `ddl-auto: validate`.
+**БД:** SQLite + Liquibase (SQL-миграции 001–012), `ddl-auto: validate`.
 
-**Модели:** `User`, `Subscription`, `XrayConfig`, `EuNode`, `EnrollmentToken`, `InviteToken`, `ClientConfig`, `MetricSample`, `TelegramProxyConfig`, `TelegramProxyUser`.
+**Модели:** `User`, `Subscription`, `XrayConfig`, `EuNode`, `EnrollmentToken`, `InviteToken`, `ClientConfig`, `MetricSample`, `TelegramProxyConfig`, `TelegramProxyUser`, `EdgeConfig`, `EdgeRoute`, `EdgeSite`.
 
-**UI:** Login, `/home` (панели импорта, TG deep-link кнопки, advanced), `/admin` (grid), CRUD users/subscriptions/invites/nodes/configs/scripts/client-configs/telegram, `/admin/xray` (live WS-логи), `/admin/monitoring`, `/admin/users/{id}/tg`. Breadcrumbs. RU/EN i18n. Адаптив.
+**UI:** Login, `/home` (панели импорта, TG deep-link, advanced), `/admin` (grid), CRUD users/subscriptions/invites/nodes/configs/scripts/client-configs/telegram/edge/routes/sites, `/admin/xray` (live WS-логи), `/admin/monitoring`, `/admin/users/{id}/tg`. Breadcrumbs, RU/EN i18n, адаптив.
 
-**Логи (фрагмент `logViewer`):** WS для Xray и telemt, фильтры (user, keyword, level, collapse duplicates, wrap), fullscreen. ANSI-коды срезаются на сервере, literal `\n` разбивается на отдельные строки. Softwrap — опция, по умолчанию horizontal scroll.
+**Xray:** `XrayInstaller` (fallback URLs), `XrayProcessManager`, `XrayRealityService`, `XrayConfigService`, `XrayConfigMaterializer` (inject + `preview()` + `dematerialize()`), `XrayAssetService`. **RSS стабилен через `policy` + `xhttpSettings` + `sockopt.tcpUserTimeout`**.
 
-**Xray:** Installer с fallback, `XrayProcessManager` (PID-файл + stale-recovery), `XrayRealityService`, `XrayConfigService` (build/parse vless), `XrayConfigMaterializer` (inject + `preview()` + `dematerialize()`), `XrayAssetService`, `XrayConfigPreview` DTO с LCS-diff. **RSS стабилизирован в 30–60 МБ через `policy` + ужесточённый `xhttpSettings` + `sockopt.tcpUserTimeout`**.
-
-**Xray-config editor:** contenteditable div вместо textarea. Сгенерированные строки (clients, eu-outbound, telemt-socks, routing) подсвечены жёлтым и `contenteditable=false`.
+**Xray-config editor:** contenteditable div. Сгенерированные строки (clients, eu-outbound, telemt-socks, routing) подсвечены жёлтым и `contenteditable=false`.
 
 **Подписки:** `GET /sub/{token}` — Base64 vless-ссылок, headers по User-Agent. Per-user UUID. Автосоздание при `/home`.
 
-**EU-ноды:** Enrollment API + admin UI + pohr-agent.sh + `TunnelHealthCheckService`.
+**EU-ноды:** Enrollment API + admin UI + `pohr-agent.sh` (pull config, health push, автообновление Xray при mismatch версии) + `TunnelHealthCheckService`.
 
-**Telegram MTProto (telemt):**
-- `TelemtInstaller` (Linux only, `.tar.gz`), `TelemtVersionRegistry/Resolver`, `TelemtProcessManager` (PID-файл + `killAllByName` + log buffer + WS broadcast).
-- `TelegramProxyService` — `apply()`, `reloadUsers()` (без рестарта Xray — только telemt), `startInternal()`.
-- `TelegramAutoStarter` — автозапуск при `ApplicationReadyEvent` если `config.enabled=true`.
-- `TelegramProxyUserInitializer` — создаёт TG-запись **сразу с секретом** при `UserCreatedEvent`; `AFTER_COMMIT` → `reloadUsers()` при create/rename/delete.
-- Схема: **БД/TOML** — 32-hex; **ссылка `tg://proxy`** — `ee` + 32hex + hex(coverDomain).
-- UI: `/admin/telegram` (статус, Start/Stop/Restart/Install, конфиг, логи через WS), `/admin/users/{id}/tg` (deep-link + copy + toggle/regenerate), `/home` (кнопка «Добавить в Telegram» через `tg://` deep-link + `<details>` fallback).
-- Nginx stream: SNI `<cover-domain>` → `127.0.0.1:3128`.
+**Telegram MTProto:** `TelemtInstaller`, `TelemtVersionRegistry/Resolver`, `TelemtProcessManager`, `TelegramProxyService` (`apply()`, `reloadUsers()`, `startInternal()`), `TelegramAutoStarter`, `TelegramProxyUserInitializer`. UI `/admin/telegram` + `/admin/users/{id}/tg` + кнопки на `/home`. Секрет: 32 hex в БД/TOML, `ee`+32hex+hex(domain) в ссылке.
 
-**HTTPS:** Caddy с LE, `forward-headers-strategy: framework`.
+**Edge-слой (новое):** `EdgeConfigService` (материализация), `NginxProcessManager` / `CaddyProcessManager` (в контейнере, graceful reload + validate перед применением), `EdgeService.apply()` (materialize → validate → reload/start), `EdgeAutoStarter` (после `ApplicationReadyEvent`), `AdminEdgeController` + CRUD для routes и sites. Оба бинарника вшиты в образ (multistage `FROM nginx:1.27-bookworm` / `FROM caddy:2.8`) и копируются из `/opt/edge-defaults` в volume при старте.
 
-**Мониторинг:** `MetricsCollector` (cgroup v1/v2 + `/proc` + JVM), `MetricsService.buildMultiChart()` → `MultiChartDto` с `ChartSeries[]`, `yTicks`, `hasData`. Frontend — inline SVG, сетка на 0/50/100%, оси X/Y, легенда.
+**Рефакторинг (новое):** `AbstractProcessManager<H>` — база для Xray/telemt/nginx/caddy (start/stop/restart/reload/recoverStale + broadcast); `AbstractLogWebSocketHandler` — база для 4 WS-хендлеров; `AbstractVersionRegistry` и `GitHubLatestVersionResolver` — базы для версий.
+
+**HTTPS:** Caddy с LE внутри контейнера, `server.forward-headers-strategy: framework`. Хостовые nginx/caddy полностью отключены (`systemctl disable`).
+
+**Мониторинг:** `MetricsCollector` (cgroup v1/v2 + `/proc` + JVM), `MetricsService.buildMultiChart()` → `MultiChartDto`. Frontend — inline SVG, сетка 0/50/100%, оси, легенда.
 
 **Хостинг:** RU — Selectel, Debian 11 (EOL), 45.131.43.6. EU — 78.17.145.160, Debian 11 (EOL), SSH :6155. Домен `pohr-roclh.xyz` (Reg.ru).
 
@@ -84,33 +86,37 @@ Telegram: Клиент → Nginx :443 (SNI=cover) → telemt :3128 → Xray SOCK
 
 ## 🚧 Что предстоит
 
-**P0 — стабильность/скрытность**
+**P0 — стабильность**
 - Rebuild RU/EU на Debian 12/13.
-- `logrotate` для Xray-логов на EU, `docker daemon.json` (max-size/max-file), `SystemMaxUse=200M` для journald.
-- Nginx stream: закрыть 3128 (`127.0.0.1:PORT:PORT`).
-- Swappiness=10, `mem_swappiness=0` в compose.
+- `logrotate` для Xray-логов, `docker daemon.json`, `SystemMaxUse=200M` для journald.
+- `MetricsCollector`: разбивка `anon`/`file` из cgroup, добавить nginx/caddy RSS.
+- `WORKDIR /app` в Dockerfile (уже есть после последней пересборки — не забыть).
 
 **P1 — клиентские установщики**
-- Детект версии v2rayN, идемпотентный рестарт, `-Fragment on|off|keep`, `-Diagnose`, restore pristine.
-- Нормализация line endings в `ClientScriptService.write()`.
+- Детект версии v2rayN, идемпотентный рестарт, `-Fragment on|off|keep`, `-Diagnose`.
 
-**P2 — установщики (расширение)**
-- DNS/TUN/системный прокси в v2rayN, routing rules из БД, «готовый ZIP».
+**P2 — расширение установщиков**
+- DNS/TUN/системный прокси, routing rules из БД, готовый ZIP.
 
 **P3 — мобильные клиенты**
-- Deep-link Happ/v2rayNG/Streisand/Karing/Shadowrocket, QR-код на `/home`, Happ Provider ID.
+- Deep-link Happ/v2rayNG/Streisand/Karing/Shadowrocket, QR на `/home`.
 
 **P4 — масштабирование**
-- gRPC Xray (`AlterInbound`), множественные EU с приоритетами, fallback на freedom при UNREACHABLE EU.
+- gRPC Xray (`AlterInbound`), множественные EU с приоритетами, fallback на freedom.
 
 **P5 — UX**
-- TG-бот (`/start`, `/config`, `/qr`, `/status`), смена пароля через UI, `/status` для юзера.
+- TG-бот, смена пароля через UI, `/status`.
 
 **P6 — безопасность**
-- Лимиты трафика/скорости, аудит, rate limiting на `/sub/{token}`, ротация `nodeSecret` 30 дней.
+- Лимиты трафика/скорости, аудит, rate limiting на `/sub/{token}`, ротация `nodeSecret`.
 
-**P7 — высший пилотаж**
-- GitHub-коммит скриптов из UI, рескрейп Prometheus-метрик telemt (`/metrics` на :9400).
+**P7 — пилотаж**
+- GitHub-коммит скриптов из UI, Prometheus-метрики telemt (`/metrics` на :9400).
+
+**P8 — авторазвёртывание**
+- `SetupController` + `/setup` мастер первичной настройки (домен, Reality SNI, cover, ACME email).
+- `EdgeOnboardingService` — автосоздание routes/sites из общих параметров.
+- `install.sh` с CLI-аргументами для zero-touch развёртывания.
 
 ---
 
@@ -127,8 +133,9 @@ Telegram: Клиент → Nginx :443 (SNI=cover) → telemt :3128 → Xray SOCK
 | WS | Spring WebSocket (raw) |
 | Security | Spring Security 7 |
 | Native | GraalVM Native Image + buildtools 1.1.14 |
-| Xray | Xray-core, ProcessBuilder (gRPC — план) |
+| Xray | Xray-core, ProcessBuilder |
 | Telegram | telemt (Rust), SOCKS5 upstream → Xray |
+| Edge | nginx 1.27 (stream), caddy 2.8 (ACME) |
 | Lombok | 1.18.42 |
 | Jackson | tools.jackson (Jackson 3) |
 
@@ -138,11 +145,11 @@ Telegram: Клиент → Nginx :443 (SNI=cover) → telemt :3128 → Xray SOCK
 
 ### Оформление
 
-1. **DTO — record** в `org.Roclh.model.dto` (+ подпакеты `.telegram`). Имя `XxxDto`, `XxxForm`.
-2. **Сущности** — `org.Roclh.model`, Lombok.
-3. **Репозитории** — `org.Roclh.repository` (+ подпакеты).
-4. **Сервисы** — `service`, `service.xray`, `service.node`, `service.metric`, `service.telegram`.
-5. **Контроллеры** — `controller`, `controller.admin`, `controller.api`.
+1. **DTO — record** в `org.Roclh.model.dto` (+ `.telegram`, `.edge`). Имя `XxxDto`, `XxxForm`.
+2. **Сущности** — `org.Roclh.model` (+ `.edge`), Lombok.
+3. **Репозитории** — `org.Roclh.repository` (+ `.telegram`, `.edge`).
+4. **Сервисы** — `service`, `service.xray`, `service.node`, `service.metric`, `service.telegram`, `service.edge`, `service.process`, `service.version`.
+5. **Контроллеры** — `controller`, `controller.admin` (+ `.edge`, `.client`), `controller.api`.
 6. **Конфиги** — `config`, `config.xray`, `config.ws`.
 7. **Исключения** — `IllegalArgumentException` где хватает.
 
@@ -153,213 +160,223 @@ Telegram: Клиент → Nginx :443 (SNI=cover) → telemt :3128 → Xray SOCK
 - **boolean** — `INTEGER` + `@JdbcTypeCode(SqlTypes.INTEGER)`.
 - **UUID** — `VARCHAR(36)` + `@JdbcTypeCode(SqlTypes.VARCHAR)`.
 - **`ddl-auto: validate`**, только Liquibase, применённые changesets не редактировать.
-- **i18n** — `messages.properties` + `messages_ru.properties`.
+- **i18n** — `messages.properties` + `messages_ru.properties` (UTF-8, Spring читает).
 - **Нормализация line endings** при записи скриптов: `.sh` → LF, `.bat/.cmd/.ps1` → CRLF.
 - **Thymeleaf fragments не вкладывать друг в друга.**
-- **`<meta name="viewport">`** на каждой странице с собственным `<head>`.
+- **`<meta name="viewport">`** на каждой странице.
 - **Не использовать `#httpServletRequest`** — передавать флаги из контроллера.
 - **`datetime('now')` в Liquibase запрещён** — только `strftime('%Y-%m-%dT%H:%M:%fZ', 'now')`.
-- **Path-переменные Thymeleaf совпадают по имени с параметром**: `@{/x/{id}/y(id=...)}`.
+- **Path-переменные Thymeleaf** совпадают по имени с параметром.
+- **Пустой список в шаблон** передавать как `null` (th:each по null = 0 итераций). Не использовать `#lists.emptyList()`.
 
-### Профили
+### Процесс-менеджеры
 
-- **dev** — `xray.home: ./xray`, Thymeleaf `cache: false`.
-- **prod** — `xray.home: /app/xray`, `XRAY_AUTO_INSTALL=false`, `SPRING_PROFILES_ACTIVE=prod`.
+**Всё что запускает дочерние процессы — через `AbstractProcessManager<H>`:**
+- `startCommand()` — что запускать (обязательно)
+- `startEnvironment()` — env vars
+- `prepareBeforeStart()` — хук (материализация конфига)
+- `cleanupBeforeStart()` / `cleanupAfterStop()` — kill orphans
+- `validate()` — проверка конфига
+- `reloadCommand()` — graceful reload (null → fallback в restart)
+- `serviceName()` — имя для логов
+
+**`validate()` вызывается перед каждым `start()`/`reload()`.** При ошибке — процесс не трогается, состояние сохраняется.
+
+**PID-файлы** — уникальные на процесс (`xray.pid`, `telemt.pid`, `nginx-manager.pid`, `caddy-manager.pid`). Реальные PID самих процессов (`nginx.pid`) пишет сам nginx внутрь своего конфига.
+
+**Stale recovery на `@PostConstruct`** — если PID жив, убить; если мёртв, почистить файл.
+
+**Все WS-хендлеры логирования** — через `AbstractLogWebSocketHandler` с одним `serviceName()`.
+
+**Все VersionRegistry/Resolver** — через `AbstractVersionRegistry` и `GitHubLatestVersionResolver`.
 
 ### Работа с Xray
 
 - **Источник истины — БД.** Правки в файл теряются при следующем restart.
-- **`policy` обязателен.** Дефолт `connIdle=300s`, буферы не ограничены. Минимум: `handshake: 4`, `connIdle: 30`, `uplinkOnly: 1`, `downlinkOnly: 1`, `bufferSize: 32`.
-- **`xhttpSettings` с явными буферами.** Дефолт `scMaxBufferedPosts: 30` × `scMaxEachPostBytes: 1 MB` = 30 МБ/соединение. Рабочие: `3` × `65536` = ~192 КБ/соединение.
+- **`policy` обязателен.** Минимум: `handshake: 4`, `connIdle: 30`, `uplinkOnly: 1`, `downlinkOnly: 1`, `bufferSize: 32`.
+- **`xhttpSettings` с явными буферами.** `scMaxBufferedPosts: 3` × `scMaxEachPostBytes: 65536` = ~192 КБ/соединение.
 - **`sockopt.tcpUserTimeout`** в каждом outbound: `20000`, `tcpKeepAliveInterval: 15`, `tcpKeepAliveIdle: 30`.
-- **RSS Xray > 100 МБ** на 10–20 юзеров — сигнал о буферах. Проверять `policy.bufferSize` и `xhttpSettings.scMaxBufferedPosts`.
-- **Routing cover domain:** правило `{outbound:direct, inbound:[telemt-socks], domain:[<coverDomain>]}` инжектится автоматически из `EuConfigService.buildRouting()` (читает `telegram_proxy_config.coverDomain`). При смене домена — правило обновится на следующем `materialize()`.
+- **RSS Xray > 100 МБ** на 10–20 юзеров — сигнал о буферах.
+- **Routing cover domain** — правило `{direct, inbound:[telemt-socks], domain:[coverDomain]}` инжектится из `EuConfigService.buildRouting()`.
+- **`dematerialize()` при Save** срезает `clients[]`, `routing`, инъекции. `routing` руками через UI не добавить — только `buildRouting()`.
 
 ### Работа с telemt
 
 - **Источник истины — БД.** `telemt.toml` — материализация при каждом `apply()`/`reloadUsers()`.
-- **Секрет в конфиге — 32 hex.** `SecureRandom` (16 байт) → `HexFormat.formatHex`.
-- **Секрет в ссылке — `ee` + 32hex + hex(coverDomain).** Собирается в `toUserDto`.
-- **Cover domain в трёх местах**: UI, `telemt.toml`, hex-суффикс ссылки. При смене — Regenerate у всех.
+- **Секрет** — 16 байт SecureRandom → 32 hex. В ссылке — `ee`+32hex+hex(coverDomain).
+- **Cover domain в трёх местах**: UI, TOML, hex-суффикс ссылки. При смене — Regenerate у всех.
 - **`use_middle_proxy = false`** обязателен при SOCKS5 upstream.
-- **`[[upstreams]]`**: `type="socks5"`, `address="127.0.0.1:10809"`, `enabled=true`, `weight=1`.
-- **`reloadUsers()`** — только telemt, Xray не трогаем (telemt-socks inbound не меняется при add/remove юзера). `generateMissingSecrets()` вызывается **до** проверки `config.enabled`.
-- **`startInternal()`** — при `ApplicationReadyEvent`, если `config.enabled=true`. Xray уже поднят `XrayAutoInstaller`.
-- **Создание юзера** — секрет генерируется в `onUserCreated` **сразу** (не на `AFTER_COMMIT`), потом `reloadUsers()`.
+- **`reloadUsers()`** — только telemt (add/remove юзера не меняет telemt-socks inbound). Xray не трогаем.
+- **`generateMissingSecrets()` до проверки `config.enabled`.**
 - **Порядок в `apply()`**: `ensureInstalled` → секреты → `writeTelemtConfig` → `materialize()` + restart Xray → start/restart telemt.
+
+### Работа с edge
+
+- **Источник истины — БД.** `nginx.conf` и `Caddyfile` — материализация.
+- **`apply()`** — materialize → validate (nginx `-t`, caddy `validate`) → reload/start. При ошибке валидации ничего не применяется.
+- **Order routes** — важен: 10 = Reality, 20 = Caddy, 30 = telemt, fallback = Caddy.
+- **`bind 127.0.0.1`** в Caddy-сайтах обязателен (иначе :8444 торчит наружу).
+- **`auto_https disable_redirects`** — иначе Caddy конфликтует с nginx за :80.
+- **`error_log stderr`** в nginx (не файл) — чтобы логи шли в stdout → WS.
+- **`-e /dev/stderr`** в argv nginx — иначе падает на отсутствии `/var/log/nginx`.
+- **Пользователь nginx** должен существовать в образе (создаётся в Dockerfile).
+- **Перед добавлением нового правила** — проверить `nginx -t` через `/admin/edge` кнопкой Apply.
+
+### Dockerfile
+
+- **Multistage:** builder (GraalVM native-image) → nginx-src → caddy-src → runtime (debian:bookworm-slim).
+- **`WORKDIR /app`** обязателен. **Без него datasource URL `./data/pohr.db` резолвится в `/data/`, а не `/app/data/` — БД теряется.**
+- **Heap native image — через `command`, не env:**
+  ```yaml
+  command: ["-Xmx192m", "-Xms64m", "-XX:MaxDirectMemorySize=32m"]
+  ```
+  `JAVA_TOOL_OPTIONS` **игнорируется** native image.
+- **`-J-Xmx12g -H:NumberOfThreads=20`** в `build.gradle` для nativeCompile на мощной машине. `--parallelism` плагин перезаписывает, `-H:NumberOfThreads` — нет.
+- **Cache mounts** для gradle и native-image — `--mount=type=cache,target=/root/.gradle` и `/root/.cache`.
+
+### Профили
+
+- **dev** — `xray.home: ./xray`, Thymeleaf `cache: false`.
+- **prod** — `xray.home: /app/xray`, `EDGE_HOME: /app/xray`, `SPRING_PROFILES_ACTIVE=prod`.
 
 ### Профиль разработчика
 
 - Локально — `./gradlew bootRun --args='--spring.profiles.active=dev'`.
-- Не коммитить: `build/`, `.gradle/`, `data/`, `xray/bin/`, `xray/config/config.json`, `xray/xray.pid`, `*.db`, `telemt.toml`.
+- Не коммитить: `build/`, `.gradle/`, `data/`, `xray/bin/`, `xray/config/config.json`, `*.pid`, `*.db`, `telemt.toml`, `edge/`.
 - После крупных фич — проверять в native image.
 
 ---
 
-## ⚠️ Известные грабли
+## ⚠️ Грабли
 
-### Java / Lombok / Gradle
-1. Lombok < 1.18.42 не работает с JDK 25.
-2. Windows: Gradle ищет `native-image.exe`, GraalVM кладёт `native-image.cmd`. `nativeImageCapable = false` + явный путь.
-3. `.properties` — ISO-8859-1.
-4. `spring.factories` для `EnvironmentPostProcessor` в SB 4 не работает — инициализация в `main()`.
-5. `nativeCompile` может сожрать 10 ГБ RAM. `-J-Xmx4g --parallelism=2`.
+### Native image / Docker
+
+1. **`WORKDIR /app` в Dockerfile** — без него relative datasource URL резолвится от `/`, БД теряется.
+2. **Heap native image — через `command`, не `JAVA_TOOL_OPTIONS`.** Без `-Xmx` heap растёт до 80% cgroup лимита → OOM.
+3. **`-J-Xmx12g -H:NumberOfThreads=20`** для nativeCompile. 4 ГБ и 20 потоков — GC thrashing, OOM.
+4. **`--parallelism=N` плагин перезаписывает**, `-H:NumberOfThreads=N` — нет.
+5. **`gradle.properties` с Windows-путями** ломает Docker-сборку — не копировать хост-версию, генерировать свою.
+6. **Alpine-бинарники не работают в Debian-образе** (musl vs glibc). Только bookworm-сборки.
+7. **Пользователь nginx** должен быть создан в образе (`useradd -r -g nginx`), иначе `getpwnam("nginx") failed`.
+8. **`-H:+AddAllCharsets`** — иначе нестандартные Charset падают. `ARG` не наследуется между стадиями.
 
 ### SQLite / JPA
-6. SQLite не имеет `TIMESTAMPTZ`/`UUID`/`BOOLEAN` — конвертеры + `JdbcTypeCode`.
-7. SQLite не создаёт директории — `Files.createDirectories` до подключения.
-8. Hibernate 7 строго валидирует типы. `Long` id — `columnDefinition="INTEGER"`.
-9. `@Modifying` требует `@Transactional`.
-10. UUID-колонка должна быть `unique`.
-11. **`datetime('now')` в миграции → `Instant.parse` падает.** Только `strftime('%Y-%m-%dT%H:%M:%fZ', 'now')`.
-12. **`SQLITE_BUSY`** — WAL + `busy_timeout=5000` + `hikari.maximum-pool-size=4`.
 
-### Windows / Native
-13. `ProcessBuilder("unzip")` на Windows не работает — `ZipInputStream`.
-14. `Path.normalize()` без `toAbsolutePath()` ломает `startsWith` (Zip Slip).
-15. `Path.of("/app/xray")` на Windows → `\app\xray`.
-16. Native image не включает нестандартные Charset'ы — `-H:+AddAllCharsets`.
-17. `ARG` не наследуется между стадиями Dockerfile.
-18. Gradle в Docker — BuildKit cache mounts.
-19. `COPY --from=builder` с пробелами в пути ломается.
+9. **Нет `TIMESTAMPTZ`/`UUID`/`BOOLEAN`** — конвертеры + `@JdbcTypeCode`. `Long` id — `columnDefinition="INTEGER"`.
+10. **`datetime('now')` в миграции → `Instant.parse` падает.** Только `strftime('%Y-%m-%dT%H:%M:%fZ', 'now')`.
+11. **`SQLITE_BUSY`** — WAL + `busy_timeout=5000` + `hikari.maximum-pool-size=4`.
+12. **SQLite не создаёт директории** — `Files.createDirectories` до подключения.
+13. **`@Modifying` требует `@Transactional`.** UUID-колонка должна быть `unique`.
 
 ### Native + Thymeleaf
-20. `Stream.toList()` immutable — SpEL падает. Оборачивать в `new ArrayList<>()`.
-21. `Instant.toString()` требует reflection — в DTO строки.
-22. Все `org.thymeleaf.expression.*` требуют `MemberCategory.INVOKE_PUBLIC_METHODS`.
-23. Любой DTO в шаблоне — `MemberCategory.values()` в NativeHints. Для SpEL-вызовов методов — дополнительно `INVOKE_PUBLIC_METHODS`.
-24. `${obj.str().toLowerCase()}` — reflection. Использовать `#strings.toLowerCase()`.
-25. **`#httpServletRequest` недоступен** — передавать флаги из контроллера.
-26. **Фрагменты не вкладывать** — параметры не пробрасываются.
-27. **`<meta name="viewport">`** обязателен.
-28. **Path-переменные совпадают по имени с параметром.**
-29. `<th:block>` вместо `<ng-container>` — не оставляет HTML-тег.
+
+14. **DTO в шаблоне** — `MemberCategory.values()` в NativeHints. Для SpEL-вызовов методов — `INVOKE_PUBLIC_METHODS`.
+15. **`Stream.toList()` immutable** — SpEL падает. Оборачивать в `new ArrayList<>()`.
+16. **`Instant.toString()` требует reflection** — в DTO строки.
+17. **`#lists.emptyList()` не существует.** Пустой список в шаблон — `null`.
+18. **Все `org.thymeleaf.expression.*`** — `INVOKE_PUBLIC_METHODS`.
+19. **`${obj.str().toLowerCase()}` — reflection.** Только `#strings.toLowerCase()`.
+20. **`#httpServletRequest` недоступен.** Флаги — из контроллера.
+21. **Фрагменты не вкладывать** — параметры не пробрасываются.
+22. **`<meta name="viewport">`** обязателен. **Path-переменные совпадают по имени.**
 
 ### Xray / Reality
-30. x25519 формат менялся: `Private key:` ↔ `PrivateKey:`, `Public key:` ↔ `Password (PublicKey):`. Парсер — оба.
-31. xhttp + Reality несовместим с `flow=xtls-rprx-vision`. Только `network=tcp`.
-32. `realitySettings.serverNames` может быть массивом — в ссылку `[0]`.
-33. `fingerprint`/`spiderX`/`alpn` — читать из JSON.
-34. Xray требует `geosite.dat`/`geoip.dat`.
-35. `xray version | head -1` под `set -o pipefail` падает с SIGPIPE.
-36. Reality выбирает SNI — не-443 палит.
-37. **`sniffing` в RU-inbound на xhttp ломает handshake.** Убран.
-38. **Версии Xray должны совпадать** на клиенте, RU, EU.
-39. `__USE_LOCAL__` в EU-конфиге — уникальная строка.
-40. **Xray RSS растёт экспоненциально без `policy`.** Дефолт `connIdle=300s` + 30 МБ буфер на соединение. Лечится `policy` + ужесточением `xhttpSettings` + `sockopt`.
-41. **`log.loglevel: warning`** скрывает `accepted tcp:...` — для диагностики временно `info`.
-42. **`dematerialize()` срезает `routing` при Save.** Правила `routing` живут только в `buildRouting()` — руками через UI не добавить.
+
+23. **x25519 формат менялся:** `Private key:` ↔ `PrivateKey:`, `Public key:` ↔ `Password (PublicKey):`. Парсер — оба.
+24. **xhttp + Reality несовместим с `flow=xtls-rprx-vision`.** Только `network=tcp`.
+25. **`realitySettings.serverNames` может быть массивом** — в ссылку `[0]`.
+26. **Reality выбирает SNI — не-443 палит.** Только :443.
+27. **`sniffing` в RU-inbound на xhttp ломает handshake.** Убран.
+28. **Версии Xray должны совпадать** на клиенте, RU, EU.
+29. **Xray требует `geosite.dat`/`geoip.dat`.** `xray version | head -1` под `set -o pipefail` падает с SIGPIPE.
+30. **Xray RSS растёт экспоненциально без `policy`.** Лечится `policy` + `xhttpSettings` + `sockopt`.
+31. **`log.loglevel: warning`** скрывает `accepted tcp:...` — для диагностики `info`.
 
 ### EU-ноды / скрипты
-43. `curl | sudo bash` должен быть идемпотентным.
-44. `iptables -F` — СТОП.
-45. `jq` может отсутствовать — ставить в bootstrap.
-46. EU за NAT — `api.ipify.org` вернёт IP, но входящие могут не доходить.
-47. `systemctl restart xray` рвёт соединения.
-48. Порт SSH может быть нестандартным.
-49. `nft` вместо `iptables` на Debian 12+.
-50. Синхронизация версии EU→RU через `X-Pohr-Xray-Version` header.
 
-### Клиентские скрипты / v2rayN
-51. v2rayN: конвертация подписки — «v2ray».
-52. URL с `localhost` не работает — `127.0.0.1`.
-53. v2rayN 7.x: `guiNConfig.json` в `guiConfigs/`.
-54. Формат фрагмента v7: `CoreBasicItem.EnableFragment` + `Fragment4RayItem.{Packets,Lengths,Delays,MaxSplit}`.
-55. `chcp 65001` нестабилен — `.bat` в Cp866, `.ps1` UTF-8+BOM.
-56. PS 5.1 без BOM читает `.ps1` как cp1251.
-57. `Set-Content -Encoding UTF8` в PS 5.1 добавляет BOM.
-58. `return` из `ForEach-Object` не прерывает цикл — флаг.
-59. Pristine-бэкап — один раз до первой модификации.
+32. **`curl | sudo bash` идемпотентным.** `iptables -F` — СТОП.
+33. **`jq` может отсутствовать** — ставить в bootstrap.
+34. **EU за NAT** — `api.ipify.org` вернёт IP, но входящие могут не доходить.
+35. **`systemctl restart xray` рвёт соединения.** `nft` вместо `iptables` на Debian 12+.
+36. **Синхронизация версии EU→RU** через `X-Pohr-Xray-Version`.
+
+### Клиентские скрипты / v2rayN / Happ
+
+37. **v2rayN: конвертация подписки — «v2ray».** URL с `localhost` не работает — `127.0.0.1`.
+38. **v2rayN 7.x: `guiNConfig.json` в `guiConfigs/`.** Формат фрагмента v7: `CoreBasicItem.EnableFragment` + `Fragment4RayItem.{Packets,Lengths,Delays,MaxSplit}`.
+39. **`chcp 65001` нестабилен** — `.bat` в Cp866, `.ps1` UTF-8+BOM. PS 5.1 без BOM читает `.ps1` как cp1251. `Set-Content -Encoding UTF8` добавляет BOM.
+40. **`return` из `ForEach-Object` не прерывает цикл** — флаг. Pristine-бэкап — один раз до первой модификации.
+41. **Happ 5.9.0** — баг с `noise`. **iOS + xhttp + Reality** — fragmentation часто не применяется.
+42. **Расширенные параметры Happ** требуют Provider ID от happ-proxy.com. Через HTTP-заголовки или `#key: value`.
 
 ### Docker / Deploy
-60. `get.docker.com` EOL-проверка ломается на Debian 11.
-61. Docker на 20 ГБ VPS забивает диск — `/etc/docker/daemon.json`.
-62. `/var/log/xray` без ротации — гигабайты.
-63. systemd-journal без лимита — `SystemMaxUse=200M`.
-64. Debian 11 EOL — `archive.debian.org`.
-65. **Loopback bind** для внутренних портов: `127.0.0.1:${PORT}:${PORT}`.
-66. **Mem limits для 1 ГБ хоста**: `mem_limit: 480m`, `pids_limit: 192`, `mem_swappiness: 0`, `oom_kill_disable: false`, `JAVA_TOOL_OPTIONS=-Xmx128m`.
 
-### Подписки / URL
-67. За Caddy — использовать `PublicUrlResolver`, не `request.getScheme()`.
-68. Let's Encrypt логирует всё в `crt.sh`.
-69. `server.forward-headers-strategy: framework` обязателен за прокси.
-70. `v2rayng://install-sub?url=BASE64&name=Pohr` — не URL-encoded.
-
-### Happ
-71. Расширенные параметры требуют **Provider ID** от happ-proxy.com.
-72. Happ 5.9.0 имеет баг с `noise`.
-73. iOS + xhttp + Reality — fragmentation часто не применяется.
-74. `fragmentation-enable` и др. через HTTP-заголовки или `#key: value`.
+43. **`get.docker.com` EOL-проверка ломается на Debian 11.**
+44. **`/etc/docker/daemon.json`** для max-size/max-file, иначе диск забивается.
+45. **`/var/log/xray` без ротации — гигабайты.** `SystemMaxUse=200M` для journald.
+46. **Debian 11 EOL — `archive.debian.org`.** Rebuild на 12+.
+47. **Loopback bind для внутренних портов:** `127.0.0.1:${PORT}:${PORT}`.
+48. **Mem limits для 1 ГБ хоста:** `mem_limit: 480m`, `pids_limit: 192`, `mem_swappiness: 0`, `oom_kill_disable: false`.
+49. **`happ://` и `v2rayng://install-sub` не URL-encoded.**
 
 ### Telegram / telemt
-75. **Формат секрета — три представления**: БД/TOML — 32 hex; ссылка — `ee`+32hex+hex(domain); в конфиге telemt — без `ee`.
-76. **URL релизов telemt без `v`**: `…/releases/download/{version}/telemt-{platform}.tar.gz`.
-77. **telemt только Linux.** Windows/macOS → `UnsupportedOperationException`.
-78. **telemt тарболл**, не бинарник. `tar -xzf`, поиск через `Files.walk`.
-79. **`--gen-secret` не существует.** Секрет = 16 байт в Java.
-80. **`telemt --help`**: `run|start|stop|reload|status`, `--init`, `--data-path`, `--log-level`. Конфиг — **позиционно**.
-81. **`use_middle_proxy = false`** обязателен при SOCKS5 upstream.
-82. **Cover domain должен быть в РФ-сегменте и не за Cloudflare.** Хорошие: `dodopizza.ru`, `www.sberbank.ru`. Плохие: `www.microsoft.com` для RU-IP.
-83. **Проверка cover domain** — `openssl s_client -connect <domain>:443 -servername <domain>` + `getent hosts`. SAN содержит домен; issuer публичный CA.
-84. **Nginx stream `map`:** SNI `<cover-domain>` → `telemt_backend { server 127.0.0.1:3128; }`.
-85. **Проверка SNI-mux:** `openssl s_client -connect <host>:443 -servername <cover-domain>` → сертификат cover, не Pohr.
-86. **Порт 3128 закрыт от интернета.**
-87. **TLS-fetch telemt уходит через upstream по умолчанию.** Симптом: `upstream route connect failed`. Лечится routing-правилом `telemt-socks + <coverDomain> → direct` в `buildRouting()`.
-88. **`bootstrap()` убран из `TelegramProxyService`.** Автозапуск — через `TelegramAutoStarter` на `ApplicationReadyEvent`.
-89. **`generateMissingSecrets()` до проверки `config.enabled`** в `reloadUsers()`.
-90. **Cover domain меняется в трёх местах** — UI, TOML, hex-суффикс ссылки. При смене — Regenerate у всех.
+
+50. **Секрет — три представления:** БД/TOML — 32 hex; ссылка — `ee`+32hex+hex(domain); конфиг telemt — без `ee`.
+51. **URL релизов без `v`:** `…/releases/download/{version}/telemt-{platform}.tar.gz`.
+52. **telemt только Linux**, **тарболл, не бинарник** (`tar -xzf` + `Files.walk`).
+53. **`--gen-secret` не существует.** Секрет = 16 байт в Java.
+54. **Конфиг — позиционно** (`telemt <config>`). `use_middle_proxy = false` при SOCKS5.
+55. **Cover domain в РФ-сегменте, не за Cloudflare.** `dodopizza.ru`, `www.sberbank.ru` — ок. `www.microsoft.com` для RU-IP — плохо.
+56. **Проверка SNI-mux:** `openssl s_client -connect <host>:443 -servername <cover>` → сертификат cover, не Pohr.
+57. **Порт 3128 закрыт от интернета.**
+58. **TLS-fetch telemt уходит через upstream** — `upstream route connect failed`. Лечится routing-правилом `telemt-socks + coverDomain → direct`.
 
 ### UI / CSS
-91. `#httpServletRequest` недоступен — передавать флаги из контроллера.
-92. `<meta name="viewport">` обязателен.
-93. CRLF в `.sh` ломает bash.
-94. `.logs` по умолчанию `white-space: pre` + `overflow-x: auto`. Softwrap — `.log-soft-wrap`.
-95. `.chart-line-*` должен получать `fill: none` — иначе SVG заливает область под линией чёрным.
 
-### Сторонние бинарники
-96. Единый паттерн:
-   - `XxxVersionRegistry` — файл `<name>/<NAME>_VERSION`.
-   - `XxxVersionResolver` — GitHub API `/releases/latest`, тег без `v`.
-   - `XxxInstaller` — `install(version)` с primary/fallback URL, HEAD-проверка, `.bak`.
-   - `XxxPlatform` — enum суффиксов по ОС/арх.
-   - YAML: `install: { version, download-url-template, fallback-url-template }`.
-   - UI: карточка Install/Update.
-   - URL-шаблон — env-override-абельный.
-   - **Перед интеграцией CLI — снять `--help` и дефолтный конфиг.**
+59. **`.logs`** — `white-space: pre` + `overflow-x: auto`. Softwrap — `.log-soft-wrap`.
+60. **`.chart-line-*` должен получать `fill: none`** — иначе SVG заливает область под линией чёрным.
+61. **CRLF в `.sh` ломает bash.**
+
+### Сторонние бинарники — единый паттерн
+
+62. `XxxVersionRegistry extends AbstractVersionRegistry` — файл `<name>/<NAME>_VERSION`.
+63. `XxxVersionResolver extends GitHubLatestVersionResolver` — GitHub API `/releases/latest`, тег без `v`.
+64. `XxxInstaller.install(version)` с primary/fallback URL, HEAD-проверка, `.bak`.
+65. `XxxPlatform` — enum суффиксов по ОС/арх.
+66. YAML: `install: { version, download-url-template, fallback-url-template, latest-api }`.
+67. UI: карточка Install/Update. URL-шаблон — env-override-абельный.
+68. **Перед интеграцией CLI — снять `--help` и дефолтный конфиг.**
 
 ---
 
-## 🔬 Диагностика: Xray memory leak
+## 🔬 Диагностика памяти
 
-### Признаки
+### Признаки утечки
 
-- Xray RSS 60 → 100 → 200 → 400 МБ, Spring на 180, OOM.
-- Логи чистые (`loglevel=warning`).
-- Ступени роста совпадают с активностью клиентов.
+- **Xray RSS 60 → 100 → 400 МБ**, ступенями. Ступени = утечка буферов xhttp.
+- **Java RSS растёт до 80% cgroup лимита.** Причина: native image без `-Xmx` берёт максимум.
 
-### Причины
-
-- Дефолт `connIdle=300s` держит мёртвые соединения 5 минут.
-- Дефолт `xhttpSettings` для `stream-up`: `scMaxBufferedPosts=30 × scMaxEachPostBytes=1 MB` = **30 МБ/соединение**.
-- 10 зависших сессий = 300 МБ.
-
-### Проверка
+### Разделение anon vs file в cgroup
 
 ```bash
-# RSS процессов в контейнере
-docker exec pohr sh -c '
-  for pid in $(ls /proc | grep -E "^[0-9]+$"); do
-    rss=$(awk "/^VmRSS:/{print \$2}" /proc/$pid/status 2>/dev/null)
-    [ -n "$rss" ] && echo "$rss kB  pid=$pid"
-  done | sort -rn | head -10
-'
-
-# Динамика в /admin/monitoring → «Xray RSS»
-# Ступени = утечка
+docker exec pohr cat /sys/fs/cgroup/memory.stat | grep -E '^(anon|file)'
+docker exec pohr cat /sys/fs/cgroup/memory.current
 ```
 
-### Фикс
+- **`file` растёт, `anon` стабилен** — page cache, норма. Ядро отдаст при давлении.
+- **`anon` растёт монотонно** — реальная утечка, ищем.
+
+### Кто именно течёт
+
+```bash
+docker exec pohr sh -c 'for pid in $(ls /proc | grep -E "^[0-9]+$"); do
+  rss=$(awk "/^VmRSS:/{print \$2}" /proc/$pid/status 2>/dev/null)
+  cmd=$(cat /proc/$pid/comm 2>/dev/null)
+  [ -n "$rss" ] && echo "$rss kB  $cmd (pid=$pid)"
+done | sort -rn | head -15'
+```
+
+### Фикс Xray утечки
 
 | Параметр | Было | Стало |
 |---|---|---|
@@ -370,13 +387,16 @@ docker exec pohr sh -c '
 | `xhttpSettings.scMaxEachPostBytes` | 1 000 000 | 65 536 |
 | `sockopt.tcpUserTimeout` | — | 20000 |
 
-**Итог:** буфер 30 МБ → 192 КБ (**×160**). 20 зависших сессий = 4 МБ.
+**Итог:** буфер 30 МБ → 192 КБ (**×160**).
 
-### Что НЕ помогает
+### Фикс Java heap
 
-- `mem_limit` выше — отложить OOM.
-- `docker restart` по крону.
-- Ограничение WS-логов — при утечке буферов xhttp бесполезно.
+В `docker-compose.yml`:
+```yaml
+command: ["-Xmx192m", "-Xms64m", "-XX:MaxDirectMemorySize=32m"]
+```
+
+**Не помогает:** `mem_limit` выше (отложить OOM), `docker restart` по крону, ограничение WS-логов.
 
 ---
 
@@ -389,15 +409,14 @@ docker exec pohr sh -c '
 5. Обновление клиентских скриптов — уведомления.
 6. Мультитенантность.
 7. PostgreSQL — когда?
-8. Ротация subscription-токенов.
-9. `nodeSecret` ротация 30 дней.
-10. Backup приватного ключа EU.
-11. Guard semver в `update_xray()`.
-12. `xfit.ru` как target Reality — правильно?
-13. Материализация через gRPC — снять требование restart Xray.
-14. Скрейп Prometheus-метрик telemt (`/metrics` на :9400) в `MetricsCollector`.
-15. WEB-режим telemt — TLS-терминация на Nginx/Haproxy.
-16. Управление `policy` через UI с пресетами.
+8. Ротация subscription-токенов и `nodeSecret`.
+9. Backup приватного ключа EU.
+10. Guard semver в `update_xray()`.
+11. Материализация через gRPC.
+12. Prometheus-метрики telemt (`/metrics` на :9400).
+13. WEB-режим telemt — TLS-терминация.
+14. Управление `policy` через UI с пресетами.
+15. Мастер первичной настройки `/setup` + `EdgeOnboardingService` + `install.sh --public-url …`.
 
 ---
 
@@ -405,17 +424,18 @@ docker exec pohr sh -c '
 
 Привет. Продолжаем разработку **Pohr** — системы управления VPN-инфраструктурой для обхода блокировок РКН.
 
-**Стек:** Java 25 + Spring Boot 4.0.8 + GraalVM Native + SQLite + Liquibase + Thymeleaf + Spring Security + Xray-core + telemt.
+**Стек:** Java 25 + Spring Boot 4.0.8 + GraalVM Native + SQLite + Liquibase + Thymeleaf + Spring Security + Xray-core + telemt + nginx stream + Caddy.
 
-**Работает end-to-end:**
-- VPN: клиент → RU-мост → EU-узел → интернет через Reality (xhttp).
-- Telegram: клиент → Nginx stream :443 (SNI=cover) → telemt :3128 → Xray SOCKS :10809 → eu → TG DC.
+**Работает end-to-end всё в одном контейнере:**
+- VPN: клиент → nginx stream :443 (SNI=xfit.ru) → Xray :8443 (Reality) → EU-узел → интернет.
+- UI: клиент → nginx stream :443 (SNI=pohr-roclh.xyz) → Caddy :8444 (ACME) → PoHR :8080.
+- Telegram: клиент → nginx stream :443 (SNI=cover) → telemt :3128 → Xray SOCKS :10809 → eu → TG DC.
 
-**Сделано:** Xray-конфиг в БД + материализация + `dematerialize()` + contenteditable-редактор с подсветкой, per-user UUID, SNI-mux, инвайты, client configs, мониторинг (метрики + составные SVG-графики с осями/сеткой/легендой), адаптивный UI, breadcrumbs, TG MTProto с per-user секретами, deep-link кнопки (`tg://`), автозапуск telemt через `TelegramAutoStarter`, лёгкий `reloadUsers()` на изменения юзеров, WS-логи Xray/telemt с фильтрами (user/keyword/level/collapse/wrap/fullscreen), фикс Xray RSS через `policy` + `xhttpSettings` + `sockopt`.
+**Сделано:** Xray-конфиг в БД + материализация + `dematerialize()` + contenteditable-редактор, per-user UUID, SNI-mux через UI (`/admin/edge/routes` + `/admin/edge/sites`), edge-слой в контейнере (nginx + caddy child processes), `AbstractProcessManager` / `AbstractLogWebSocketHandler` / `AbstractVersionRegistry` / `GitHubLatestVersionResolver`, инвайты, client configs, мониторинг с составными SVG, TG MTProto с per-user секретами, deep-link `tg://`, автозапуск telemt, лёгкий `reloadUsers()`, WS-логи Xray/telemt/nginx/caddy, фикс Xray RSS через `policy` + `xhttpSettings` + `sockopt`, фикс Java RSS через `command: ["-Xmx192m", "-Xms64m", "-XX:MaxDirectMemorySize=32m"]`.
 
-**Правила:** DTO — record в `model/dto`, сущности в `model`, Liquibase SQL, `ddl-auto: validate`, id — UUID (кроме time-series), `Instant` через `InstantStringConverter`, Xray-конфиг в БД (файл — материализация), `telemt.toml` — материализация, клиентские скрипты в volume, EU-ноды — pull-модель, `#httpServletRequest` недоступен, `<meta viewport>` обязателен, path-переменные Thymeleaf совпадают по имени, `datetime('now')` запрещён в Liquibase, telegram-секрет: 32 hex в БД/TOML, `ee`+32hex+hex(domain) в ссылке.
+**Правила:** DTO — record в `model/dto` (+ `.telegram`, `.edge`), сущности в `model`, Liquibase SQL, `ddl-auto: validate`, id — UUID (кроме time-series), `Instant` через `InstantStringConverter`, Xray-конфиг в БД, `telemt.toml` и `nginx.conf`/`Caddyfile` — материализация, клиентские скрипты в volume, EU-ноды — pull-модель, `#httpServletRequest` недоступен, `<meta viewport>` обязателен, path-переменные Thymeleaf совпадают по имени, `datetime('now')` запрещён в Liquibase, telegram-секрет: 32 hex в БД/TOML, `ee`+32hex+hex(domain) в ссылке, heap native image — через `command`, не env, **`WORKDIR /app` в Dockerfile обязателен**.
 
-**Предстоит:** rebuild Debian 12, logrotate, ограничение Docker-логов, мобильные deep-link, gRPC Xray, множественные EU с fallback, TG-бот, routing rules из БД, скрейп Prometheus telemt.
+**Предстоит:** мастер `/setup` + `EdgeOnboardingService` + zero-touch `install.sh`, logrotate, ограничение Docker-логов, разбивка anon/file в мониторинге, мобильные deep-link, gRPC Xray, множественные EU с fallback, TG-бот, routing rules из БД, Prometheus telemt.
 
 **Следующий шаг:** [что делаем].
 
@@ -424,33 +444,11 @@ docker exec pohr sh -c '
 ## 🔑 Итоговый принцип
 
 **Pohr — не «ещё один VPN-сервер». Это платформа для админа, который хочет:**
-- 5 минут на развёртывание, а не 5 часов;
+- 5 минут на развёртывание одной командой;
 - не думать о блокировках;
 - выдавать подписки и TG-прокси одним кликом;
-- редактировать Xray-конфиг в удобном редакторе;
-- прятаться от DPI (Reality, cover domain) и от провайдера VPS.
+- править Xray-конфиг, edge-маршруты и TLS-сайты через UI;
+- прятаться от DPI (Reality, cover domain) и от провайдера VPS (edge в контейнере, не в `ps` хоста).
 
 **Любая новая фича проверяется:** упрощает жизнь админа? Работает в условиях блокировок? Не палит систему?
-
-Ниже представлена структура проекта и полный код всех отслеживаемых файлов.
-Файлы могут быть в текстовом формате (## path/to/file) или в JSON (с полями system_prompt, tree, files).
-Если используется JSON, поле files содержит словарь с относительными путями и содержимым файлов.
-Если в файле отсутствуют импорты, или комментарии, или еще что-то, что явно там должно быть - вероятнее всего это оптимизация для того,
-чтобы лучше использовать твой контекст.
-НИКОГДА НЕ ПРИСЫЛАЙ МНЕ КОД В ФОРМАТЕ unified diff. В таком формате отправляю данные только я, твой diff я не пойму.
-
-Если я пришлю unified diff (файл .patch), это означает изменения относительно последнего предоставленного контекста.
-Примени этот diff к текущему контексту, чтобы получить актуальную версию проекта перед ответом.
-
-При ответах обязательно придерживайся следующих правил:
-- Отвечай на русском языке.
-- Предпочитай краткие ответы с примерами кода.
-- Предлагай только один вариант решения, наиболее приближенный к принятому в промышленной разработке подходу.
-- При предложении изменений:
-  * если изменение небольшое (например, правка нескольких строк в методе), покажи весь метод с изменениями, а не только изменённые строки;
-  * если изменение большое (например, добавление нового класса), покажи весь новый файл целиком.
-- Старайся поддерживать стиль кода, соответствующий существующему в проекте.
-- При объяснениях будь краток, если не запрошено подробное описание.
-- Учитывай правила .aiignore: файлы и директории, перечисленные там, не должны рассматриваться как часть проекта.
-
-Далее идёт структура проекта и содержимое файлов.
+```

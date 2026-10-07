@@ -15,57 +15,120 @@
 
         <div class="import-panels">
 
-            <a class="import-panel" th:if="${isMobile or isAdmin}" th:href="${happLink}">
-                <div class="import-panel-title">Happ</div>
-                <div class="import-panel-desc" th:text="#{home.import.happ.desc}">
-                    iOS · Android
-                </div>
-                <div class="import-panel-arrow">→</div>
-            </a>
+            <th:block th:replace="~{fragments/import :: button(
+        ${isMobile or isAdmin},
+        'Happ',
+        'home.import.happ.desc',
+        ${happLink},
+        'https://apps.apple.com/app/happ-proxy-utility/id6504287215',
+        'https://play.google.com/store/apps/details?id=com.happproxy',
+        'Happ')}"></th:block>
 
-            <a class="import-panel" th:if="${isMobile or isAdmin}" th:href="${v2rayNgLink}">
-                <div class="import-panel-title">v2rayNG</div>
-                <div class="import-panel-desc" th:text="#{home.import.v2rayng.desc}">
-                    Android
-                </div>
-                <div class="import-panel-arrow">→</div>
-            </a>
+            <th:block th:replace="~{fragments/import :: button(
+        ${isMobile or isAdmin},
+        'v2rayNG',
+        'home.import.v2rayng.desc',
+        ${v2rayNgLink},
+        null,
+        'https://play.google.com/store/apps/details?id=com.v2ray.ang',
+        'v2rayNG')}"></th:block>
 
-            <a class="import-panel" th:if="${!isMobile or isAdmin}"
-               th:href="@{'/sub/' + ${subscriptionToken} + '/setup.bat'}">
-                <div class="import-panel-title">v2rayN</div>
-                <div class="import-panel-desc" th:text="#{home.import.v2rayn.desc}">
-                    Windows · автонастройка .bat
-                </div>
-                <div class="import-panel-arrow">→</div>
-            </a>
+            <th:block th:with="upd=${updates != null ? updates.get('v2rayn-setup.bat') : null}"
+                      th:replace="~{fragments/import :: download(
+        ${!isMobile or isAdmin},
+        'v2rayN',
+        'home.import.v2rayn.desc',
+        @{'/sub/' + ${subscriptionToken} + '/scripts/v2rayn-setup.bat/raw'},
+        @{'/sub/' + ${subscriptionToken} + '/scripts/v2rayn-setup.bat'},
+        ${upd != null and upd.hasUpdates()},
+        ${upd != null and upd.hasMajor()})}"></th:block>
 
-            <a class="import-panel" th:if="${!isMobile or isAdmin}" th:href="${streisandLink}">
-                <div class="import-panel-title">Streisand</div>
-                <div class="import-panel-desc" th:text="#{home.import.streisand.desc}">
-                    iOS · macOS
-                </div>
-                <div class="import-panel-arrow">→</div>
-            </a>
+            <th:block th:replace="~{fragments/import :: button(
+        ${!isMobile or isAdmin},
+        'Streisand',
+        'home.import.streisand.desc',
+        ${streisandLink},
+        'https://apps.apple.com/app/streisand/id6450534064',
+        null,
+        'Streisand')}"></th:block>
 
-            <a class="import-panel" th:if="${!isMobile or isAdmin}" th:href="${karingLink}">
-                <div class="import-panel-title">Karing</div>
-                <div class="import-panel-desc" th:text="#{home.import.karing.desc}">
-                    iOS · macOS
-                </div>
-                <div class="import-panel-arrow">→</div>
-            </a>
+            <th:block th:replace="~{fragments/import :: button(
+        ${!isMobile or isAdmin},
+        'Karing',
+        'home.import.karing.desc',
+        ${karingLink},
+        'https://apps.apple.com/app/karing/id6472431552',
+        null,
+        'Karing')}"></th:block>
 
-            <a class="import-panel" th:if="${!isMobile or isAdmin}" th:href="${shadowrocketLink}">
-                <div class="import-panel-title">Shadowrocket</div>
-                <div class="import-panel-desc" th:text="#{home.import.shadowrocket.desc}">
-                    iOS
-                </div>
-                <div class="import-panel-arrow">→</div>
-            </a>
+            <th:block th:replace="~{fragments/import :: button(
+        ${!isMobile or isAdmin},
+        'Shadowrocket',
+        'home.import.shadowrocket.desc',
+        ${shadowrocketLink},
+        'https://apps.apple.com/app/shadowrocket/id932747118',
+        null,
+        'Shadowrocket')}"></th:block>
 
         </div>
     </section>
+    <!-- ===== Fallback modal: приложение не найдено ===== -->
+    <div id="fallback-modal" class="modal-overlay" style="display: none;"
+         role="dialog" aria-modal="true">
+        <div class="modal-card">
+            <h3>Приложение не найдено</h3>
+            <p>
+                Похоже, у вас не установлено приложение
+                <b id="fallback-client-name"></b>.
+            </p>
+            <div class="modal-actions">
+                <button type="button" class="button" id="fallback-store-link">
+                    Открыть App Store
+                </button>
+                <button type="button" class="button secondary" id="fallback-region-help">
+                    Инструкция по смене региона
+                </button>
+                <button type="button" class="link-button on-light" id="fallback-cancel">
+                    Отмена
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===== Region help modal ===== -->
+    <div id="region-help-modal" class="modal-overlay" style="display: none;"
+         role="dialog" aria-modal="true">
+        <div class="modal-card">
+            <h3>Как сменить регион в App Store</h3>
+            <ol>
+                <li>Откройте <b>Настройки</b> → нажмите на своё имя вверху.</li>
+                <li><b>Медиа и покупки</b> → <b>Просмотреть аккаунт (может потребоваться вход)</b>.</li>
+                <li><b>Страна/регион</b> → <b>Изменить страну или регион</b>.</li>
+                <li>Выберите <b>Беларусь</b> (или <b>Казахстан</b>).</li>
+                <li>При запросе адреса введите:
+                    <ol>
+                        <li><b>Страна</b>: будет выбрана пунктом выше</li>
+                        <li><b>Город</b>: Минск (или Алматы)</li>
+                        <li><b>Улица</b>: Революционная</li>
+                        <li><b>Индекс</b>: 220030 (или 050009 для Казахстана)</li>
+                        <li><b>Телефон</b>: ваш номер (можно свой, пример +7921...)</li>
+                    </ol>
+                </li>
+                <li>В способе оплаты выберите «<b>Нет</b>» и примите условия.</li>
+            </ol>
+            <p class="hint" style="font-size: .85rem; color: #9ca3af;">
+                Смена региона может повлиять на подписки (Apple Music, iCloud+).
+            </p>
+            <div class="modal-actions">
+                <button type="button" class="button" id="region-help-retry">
+                    Регион изменён, попробовать снова
+                </button>
+                <button type="button" class="link-button on-light" id="region-help-close">
+                    Закрыть
+                </button>
+            </div>
+        </div>
+    </div>
 
     <section class="card" th:if="${tgProxyUrl != null}">
         <h2 th:text="#{home.tg.title}">Telegram MTProto</h2>
@@ -135,6 +198,7 @@
             });
         });
     </script>
+    <script th:src="@{/js/deeplink.js}"></script>
 </main>
 
 </body>

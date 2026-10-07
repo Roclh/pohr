@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head(#{app.title})}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+
+<main class="container">
+    <h1>Скрипты Pohr</h1>
+    <p class="muted">
+        Каталог всех скриптов, зарегистрированных в системе.
+    </p>
+
+    <table class="table" th:if="${!#lists.isEmpty(scripts)}">
+        <thead>
+        <tr>
+            <th>Имя</th>
+            <th>Версия</th>
+            <th>Платформа</th>
+            <th>Зависимости</th>
+            <th>Кто зависит</th>
+            <th class="actions">Действия</th>
+        </tr>
+        </thead>
+        <tbody>
+        <tr th:each="v : ${scripts}">
+            <td data-label="Имя">
+                <code th:text="${v.script().getName()}">v2rayn-setup.bat</code>
+                <span th:if="${v.script().isEntrypoint()}" class="script-entry-badge">entry</span>
+                <span th:unless="${v.script().isEnabled()}" class="badge disabled">disabled</span>
+            </td>
+            <td data-label="Версия">
+                <span class="script-version" th:if="${v.activeVersion() != null}"
+                      th:text="${v.activeVersion().getVersion()}">1.5</span>
+                <span th:if="${v.activeVersion() == null}" class="muted">—</span>
+            </td>
+            <td data-label="Платформа" th:text="${v.script().getPlatform()}">windows</td>
+            <td data-label="Зависимости">
+                <span th:if="${#sets.isEmpty(v.deps())}" class="muted">—</span>
+                <code th:each="d, st : ${v.deps()}"
+                      th:text="${d}"
+                      style="margin-right:6px;">pohr-utils.ps1</code>
+            </td>
+            <td data-label="Кто зависит">
+                <span th:if="${#sets.isEmpty(v.reverseDeps())}" class="muted">—</span>
+                <code th:each="d, st : ${v.reverseDeps()}"
+                      th:text="${d}"
+                      style="margin-right:6px;">v2rayn-setup.bat</code>
+            </td>
+            <td class="actions">
+                <a class="link"
+                   th:href="@{'/sub/' + ${token} + '/scripts/' + ${v.script().getName()}}">
+                    Preview
+                </a>
+                <a class="link"
+                   th:href="@{'/sub/' + ${token} + '/scripts/' + ${v.script().getName()} + '/raw'}">
+                    Скачать
+                </a>
+            </td>
+        </tr>
+        </tbody>
+    </table>
+
+    <p th:if="${#lists.isEmpty(scripts)}" class="muted">Скриптов пока нет.</p>
+</main>
+</body>
+</html>

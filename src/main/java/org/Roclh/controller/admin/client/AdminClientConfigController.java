@@ -1,4 +1,4 @@
-package org.Roclh.controller.admin;
+package org.Roclh.controller.admin.client;
 
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -23,7 +23,7 @@ public class AdminClientConfigController {
     @GetMapping
     public String list(Model model) {
         model.addAttribute("configs", clientConfigService.findAll());
-        return "admin/client-configs";
+        return "admin/client/client-configs";
     }
 
     @GetMapping("/{name}/edit")
@@ -33,7 +33,7 @@ public class AdminClientConfigController {
         model.addAttribute("name", name);
         model.addAttribute("form", new ClientConfigForm(
                 cfg.isEnabled(), cfg.getUserAgentPattern(), cfg.getHeaders()));
-        return "admin/client-config-form";
+        return "admin/client/client-config-form";
     }
 
     @PostMapping("/{name}")
@@ -44,7 +44,7 @@ public class AdminClientConfigController {
                        RedirectAttributes flash) {
         if (binding.hasErrors()) {
             model.addAttribute("name", name);
-            return "admin/client-config-form";
+            return "admin/client/client-config-form";
         }
         try {
             clientConfigService.update(name, form.enabled(), form.userAgentPattern(), form.headers());
@@ -52,6 +52,6 @@ public class AdminClientConfigController {
         } catch (Exception e) {
             flash.addFlashAttribute("errorMessage", e.getMessage());
         }
-        return "redirect:/admin/client-configs/" + name + "/edit";
+        return "redirect:/admin/client/client-configs/" + name + "/edit";
     }
 }

@@ -9,3 +9,7 @@ xray:
 spring:
   thymeleaf:
     cache: false
+
+pohr:
+  edge:
+    home: ./xray

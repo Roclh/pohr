@@ -1,42 +1,53 @@
-FROM ghcr.io/graalvm/native-image-community:25 AS builder
-ARG APP_HOME=/app
-WORKDIR ${APP_HOME}
+# syntax=docker/dockerfile:1.7
 
-COPY gradlew .
+FROM ghcr.io/graalvm/native-image-community:25 AS builder
+WORKDIR /build
+
 COPY gradle gradle
-COPY build.gradle settings.gradle gradle.properties ./
-RUN chmod +x gradlew
+COPY gradlew gradlew
+COPY settings.gradle build.gradle ./
+
+# Генерируем свой gradle.properties — без Windows-путей и без auto-detect
+RUN printf 'org.gradle.jvmargs=-Xmx4g\norg.gradle.parallel=false\norg.gradle.daemon=false\n' \
+        > gradle.properties
 
 RUN --mount=type=cache,target=/root/.gradle \
-    --mount=type=cache,target=/root/.gradle-wrapper \
-    ./gradlew --no-daemon dependencies
+    ./gradlew dependencies --no-daemon
 
 COPY src src
-RUN --mount=type=cache,target=/root/.gradle \
-    --mount=type=cache,target=/root/.gradle-wrapper \
-    ./gradlew --no-daemon nativeCompile
 
-FROM debian:bookworm-slim
+RUN --mount=type=cache,target=/root/.gradle \
+    --mount=type=cache,target=/root/.cache \
+    ./gradlew nativeCompile --no-daemon
+
+# --- nginx ---
+FROM nginx:1.27-bookworm AS nginx-src
+
+# --- caddy ---
+FROM caddy:2.8 AS caddy-src
+
+# --- runtime ---
+FROM debian:bookworm-slim AS runtime
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-        ca-certificates tzdata \
-    && rm -rf /var/lib/apt/lists/* \
-    && useradd -m -u 1000 -s /bin/bash pohr
+        ca-certificates \
+        libpcre2-8-0 \
+        zlib1g \
+        libssl3 \
+        libcrypt1 \
+        openssl \
+        tini \
+    && rm -rf /var/lib/apt/lists/*
+
+# Пользователь и директории для nginx
+RUN groupadd -r nginx && useradd -r -g nginx -s /sbin/nologin -d /var/lib/nginx nginx \
+ && mkdir -p /var/cache/nginx /var/log/nginx /run /var/lib/nginx \
+ && chown -R nginx:nginx /var/cache/nginx /var/log/nginx /var/lib/nginx
+
+COPY --from=builder /build/build/native/nativeCompile/pohr /app/pohr
+COPY --from=nginx-src /usr/sbin/nginx /app/xray/edge/bin/nginx
+COPY --from=caddy-src /usr/bin/caddy  /app/xray/edge/bin/caddy
 
 WORKDIR /app
-COPY --from=builder /app/build/native/nativeCompile/pohr /app/pohr
-RUN chmod +x /app/pohr
-
-RUN mkdir -p /app/data /app/scripts /app/xray/bin /app/xray/config \
-    && chown -R pohr:pohr /app
-
-USER pohr
-
-ENV SCRIPTS_HOME=/app/scripts \
-    SPRING_PROFILES_ACTIVE=prod \
-    XRAY_AUTO_INSTALL=true \
-    EU_XRAY_VERSION=latest
-
-EXPOSE 8080 8443
-
-ENTRYPOINT ["/app/pohr"]
+EXPOSE 8080 8443 443 80
+ENTRYPOINT ["/usr/bin/tini", "--", "/app/pohr"]

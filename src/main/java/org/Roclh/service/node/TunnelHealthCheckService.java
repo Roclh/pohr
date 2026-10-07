@@ -64,7 +64,7 @@ public class TunnelHealthCheckService {
         }
         // Materializer добавляет только один eu outbound — для первой активной ноды.
         // Через SOCKS :10808 трафик идёт именно к ней, другие проверять бессмысленно.
-        EuNode node = candidates.get(0);
+        EuNode node = candidates.getFirst();
 
         String observedIp = probeThroughSocks();
         if (observedIp == null) {

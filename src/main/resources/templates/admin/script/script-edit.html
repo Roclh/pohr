@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head(#{admin.scriptsCatalog.editContent})}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<nav th:replace="~{fragments/layout :: crumbs('admin.scriptsCatalog.editContent', 'admin.scriptsCatalog.title', '/admin/scripts')}"></nav>
+
+<main class="container">
+    <h1>
+        <span th:text="#{admin.scriptsCatalog.editContent}">Редактирование</span>:
+        <code th:text="${script.getName()}">v2rayn-setup.bat</code>
+    </h1>
+
+    <div th:if="${errorMessage}" class="alert error" th:text="${errorMessage}"></div>
+
+    <div class="alert info">
+        <span th:text="#{admin.scriptsCatalog.editHint}">
+            После сохранения содержимое в volume перезапишется, и будет создана новая минорная версия.
+            Предыдущее содержимое сохранится в .history.
+        </span>
+    </div>
+
+    <form th:action="@{/admin/scripts/{id}/content(id=${script.getId()})}" method="post" class="form card">
+        <div class="field">
+            <label for="content" th:text="#{admin.scriptsCatalog.content}">Содержимое</label>
+            <textarea id="content" name="content" rows="30" spellcheck="false"
+                      class="config-editor" th:text="${content}"></textarea>
+        </div>
+        <div class="form-actions">
+            <button type="submit" th:text="#{user.form.save}">Сохранить</button>
+            <a class="link" th:href="@{/admin/scripts/{id}(id=${script.getId()})}"
+               th:text="#{user.form.cancel}">Отмена</a>
+        </div>
+    </form>
+</main>
+
+<script>
+    (function () {
+        const ta = document.getElementById('content');
+        if (!ta) return;
+        ta.addEventListener('keydown', (e) => {
+            if (e.key !== 'Tab') return;
+            e.preventDefault();
+            const s = ta.selectionStart, en = ta.selectionEnd, v = ta.value;
+            ta.value = v.slice(0, s) + '  ' + v.slice(en);
+            ta.selectionStart = ta.selectionEnd = s + 2;
+        });
+    })();
+</script>
+</body>
+</html>

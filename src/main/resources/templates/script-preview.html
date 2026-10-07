@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head(${script.getDisplayName()})}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+
+<main class="container">
+    <nav class="breadcrumbs">
+        <a th:href="@{/home}">Home</a>
+        <span class="crumb-sep">›</span>
+        <span class="crumb-current" th:text="${script.getDisplayName()}">v2rayN</span>
+    </nav>
+
+    <h1 th:text="${script.getDisplayName()}">v2rayN</h1>
+    <p class="muted" th:if="${script.getDescription() != null}"
+       th:text="${script.getDescription()}">Описание</p>
+
+    <div class="script-meta">
+        <span class="script-version" th:text="${activeVersion.getVersion()}">1.5</span>
+        <span th:text="${size} + ' B'">1024 B</span>
+        <span th:text="${#strings.substringBefore(activeVersion.getCreatedAt().toString(), '.')}">
+            2026-10-07T15:00:00
+        </span>
+        <span class="badge user" th:text="${script.getPlatform()}">windows</span>
+        <span class="badge user" th:if="${script.isEntrypoint()}">entrypoint</span>
+        <span th:text="#{script.preview.lines} + ' ' + ${lineCount}">lines: 128</span>
+    </div>
+
+    <div class="toolbar">
+        <a class="button"
+           th:href="@{'/sub/' + ${token} + '/scripts/' + ${script.getName()} + '/raw'}"
+           th:text="#{script.preview.download}">Скачать</a>
+        <a class="link" th:href="@{/home}"
+           th:text="#{script.preview.backHome}">← На главную</a>
+    </div>
+
+    <div class="script-code">
+        <div class="script-code-gutter">
+            <div th:each="i : ${#numbers.sequence(1, lineCount)}" th:text="${i}">1</div>
+        </div>
+        <pre class="script-code-body" th:text="${content}"></pre>
+    </div>
+
+    <div class="script-deps" th:if="${!deps.isEmpty()}">
+        <b th:text="#{script.preview.deps}">Зависимости:</b>
+        <a th:each="d : ${deps}"
+           class="dep-link"
+           th:href="@{'/sub/' + ${token} + '/scripts/' + ${d}}"
+           th:text="${d}">pohr-utils.ps1</a>
+    </div>
+</main>
+</body>
+</html>

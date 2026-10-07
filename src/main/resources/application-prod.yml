@@ -28,3 +28,4 @@ pohr:
       version: ${TELEMT_VERSION:latest}
       download-url-template: https://github.com/telemt/telemt/releases/download/v{version}/telemt-{platform}.tar.gz
       fallback-url-template: ${TELEMT_FALLBACK_URL:}
+      latest-api: ${TELEMT_LATEST_API:https://api.github.com/repos/telemt/telemt/releases/latest}

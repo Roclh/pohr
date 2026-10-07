@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head(#{admin.scriptsCatalog.reportDetail})}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<nav th:replace="~{fragments/layout :: crumbs('admin.scriptsCatalog.reportDetail', 'admin.scriptsCatalog.reports', '/admin/scripts/reports')}"></nav>
+
+<main class="container">
+    <h1 th:text="#{admin.scriptsCatalog.reportDetail}">Отчёт об ошибке</h1>
+
+    <div th:if="${successMessage}" class="alert success" th:text="#{${successMessage}}"></div>
+
+    <section class="card">
+        <div class="script-meta">
+            <span th:text="#{admin.scriptsCatalog.received} + ': ' + ${#strings.substringBefore(report.getReceivedAt().toString(), '.')}">
+                2026-10-07T15:00:00
+            </span>
+            <span th:if="${report.getStage() != null}"
+                  th:text="#{admin.scriptsCatalog.stage} + ': ' + ${report.getStage()}">stage</span>
+            <span class="badge"
+                  th:classappend="${report.getStatus().name() == 'NEW' ? 'disabled'
+                                 : report.getStatus().name() == 'RESOLVED' ? 'enabled' : 'user'}"
+                  th:text="${report.getStatus().name()}">NEW</span>
+        </div>
+
+        <pre class="logs" style="max-height:none;" th:text="${report.getReportText()}"></pre>
+    </section>
+
+    <section class="card">
+        <div class="form-actions">
+            <form th:if="${report.getStatus().name() == 'NEW'}"
+                  th:action="@{/admin/scripts/reports/{id}/in-progress(id=${report.getId()})}"
+                  method="post" class="inline">
+                <button type="submit" class="link-button on-light"
+                        th:text="#{admin.scriptsCatalog.markInProgress}">В работу</button>
+            </form>
+            <form th:if="${report.getStatus().name() != 'RESOLVED'}"
+                  th:action="@{/admin/scripts/reports/{id}/resolve(id=${report.getId()})}"
+                  method="post" class="inline"
+                  onsubmit="return confirm('Разобрано? Отчёт будет удалён.')">
+                <button type="submit" th:text="#{admin.scriptsCatalog.markResolved}">Разобран</button>
+            </form>
+        </div>
+    </section>
+
+    <div class="toolbar">
+        <a class="link" th:href="@{/admin/scripts/reports}" th:text="#{common.back}">Назад</a>
+    </div>
+</main>
+</body>
+</html>

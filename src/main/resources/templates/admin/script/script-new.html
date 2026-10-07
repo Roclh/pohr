@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head(#{admin.scriptsCatalog.new})}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<nav th:replace="~{fragments/layout :: crumbs('admin.scriptsCatalog.new', 'admin.scriptsCatalog.title', '/admin/scripts')}"></nav>
+
+<main class="container">
+    <h1 th:text="#{admin.scriptsCatalog.new}">Новый скрипт</h1>
+
+    <div th:if="${errorMessage}" class="alert error" th:text="${errorMessage}"></div>
+
+    <div class="alert info" th:text="#{admin.scriptsCatalog.newHint}">
+        Файл будет создан в volume. Версия начнётся с 1.0.
+    </div>
+
+    <form th:action="@{/admin/scripts}" method="post" class="form card">
+
+        <div class="field">
+            <label for="name" th:text="#{admin.scriptsCatalog.name}">Имя файла</label>
+            <input type="text" id="name" name="name" required
+                   th:value="${name}" placeholder="my-script.ps1" autofocus>
+            <p class="hint" th:text="#{admin.scriptsCatalog.newNameHint}">
+                Разрешены .bat, .cmd, .ps1, .sh, .txt, .json.
+            </p>
+        </div>
+
+        <div class="field">
+            <label for="displayName" th:text="#{admin.scriptsCatalog.displayName}">Отображаемое имя</label>
+            <input type="text" id="displayName" name="displayName"
+                   th:value="${displayName}" placeholder="My script">
+        </div>
+
+        <div class="field">
+            <label for="description" th:text="#{admin.scriptsCatalog.description}">Описание</label>
+            <textarea id="description" name="description" rows="2"
+                      th:text="${description}"></textarea>
+        </div>
+
+        <div class="field">
+            <label for="platform" th:text="#{admin.scriptsCatalog.platform}">Платформа</label>
+            <select id="platform" name="platform">
+                <option value="any"     th:selected="${platform == null or platform == 'any'}">any</option>
+                <option value="windows" th:selected="${platform == 'windows'}">windows</option>
+                <option value="linux"   th:selected="${platform == 'linux'}">linux</option>
+                <option value="macos"   th:selected="${platform == 'macos'}">macos</option>
+            </select>
+        </div>
+
+        <div class="field">
+            <label for="accessLevel" th:text="#{admin.scriptsCatalog.access}">Доступ</label>
+            <select id="accessLevel" name="accessLevel">
+                <option value="ADMIN"
+                        th:selected="${accessLevel == null or accessLevel.name() == 'ADMIN'}">ADMIN</option>
+                <option value="PUBLIC"
+                        th:selected="${accessLevel != null and accessLevel.name() == 'PUBLIC'}">PUBLIC</option>
+            </select>
+        </div>
+
+        <div class="field">
+            <label for="sortOrder" th:text="#{admin.scriptsCatalog.sortOrder}">Порядок сортировки</label>
+            <input type="number" id="sortOrder" name="sortOrder"
+                   th:value="${sortOrder != null ? sortOrder : 1000}" min="0" max="9999">
+        </div>
+
+        <div class="field checkbox">
+            <label>
+                <input type="checkbox" name="entrypoint" value="true"
+                       th:checked="${entrypoint}">
+                <span th:text="#{admin.scriptsCatalog.entrypoint}">Точка входа</span>
+            </label>
+        </div>
+
+        <div class="field checkbox">
+            <label>
+                <input type="checkbox" name="enabled" value="true"
+                       th:checked="${enabled == null or enabled}">
+                <span th:text="#{admin.scriptsCatalog.enabled}">Активен</span>
+            </label>
+        </div>
+
+        <div class="field">
+            <label for="content" th:text="#{admin.scriptsCatalog.content}">Содержимое</label>
+            <textarea id="content" name="content" rows="20" spellcheck="false"
+                      class="config-editor" th:text="${content}"></textarea>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" th:text="#{user.form.save}">Создать</button>
+            <a class="link" th:href="@{/admin/scripts}" th:text="#{user.form.cancel}">Отмена</a>
+        </div>
+    </form>
+</main>
+
+<script>
+    (function () {
+        const ta = document.getElementById('content');
+        if (!ta) return;
+        ta.addEventListener('keydown', (e) => {
+            if (e.key !== 'Tab') return;
+            e.preventDefault();
+            const s = ta.selectionStart, en = ta.selectionEnd, v = ta.value;
+            ta.value = v.slice(0, s) + '  ' + v.slice(en);
+            ta.selectionStart = ta.selectionEnd = s + 2;
+        });
+    })();
+</script>
+</body>
+</html>

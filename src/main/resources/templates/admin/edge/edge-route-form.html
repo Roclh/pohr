@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head(#{admin.edge.routes})}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<nav th:replace="~{fragments/layout :: crumbs('admin.edge.routes', 'admin.edge.title', '/admin/edge')}"></nav>
+
+<main class="container narrow">
+    <h1 th:text="${mode == 'create'} ? #{admin.edge.route.new} : #{admin.edge.route.edit}">Route</h1>
+
+    <form th:action="${mode == 'create'} ? @{/admin/edge/routes} : @{/admin/edge/routes/{id}(id=${routeId})}"
+          th:object="${form}" method="post" class="form card">
+
+        <div class="field" th:classappend="${#fields.hasErrors('sni')} ? 'has-error'">
+            <label for="sni" th:text="#{admin.edge.route.sni}">SNI</label>
+            <input type="text" id="sni" th:field="*{sni}" placeholder="xfit.ru" autofocus>
+            <p class="field-error" th:if="${#fields.hasErrors('sni')}" th:errors="*{sni}">err</p>
+        </div>
+
+        <div class="field" th:classappend="${#fields.hasErrors('targetHost')} ? 'has-error'">
+            <label for="targetHost" th:text="#{admin.edge.route.targetHost}">Target host</label>
+            <input type="text" id="targetHost" th:field="*{targetHost}" placeholder="127.0.0.1">
+            <p class="field-error" th:if="${#fields.hasErrors('targetHost')}" th:errors="*{targetHost}">err</p>
+        </div>
+
+        <div class="field" th:classappend="${#fields.hasErrors('targetPort')} ? 'has-error'">
+            <label for="targetPort" th:text="#{admin.edge.route.targetPort}">Target port</label>
+            <input type="number" id="targetPort" th:field="*{targetPort}" min="1" max="65535">
+            <p class="field-error" th:if="${#fields.hasErrors('targetPort')}" th:errors="*{targetPort}">err</p>
+        </div>
+
+        <div class="field" th:classappend="${#fields.hasErrors('protocol')} ? 'has-error'">
+            <label for="protocol" th:text="#{admin.edge.route.protocol}">Protocol</label>
+            <select id="protocol" th:field="*{protocol}">
+                <option value="tcp">TCP</option>
+                <option value="udp">UDP (reserved)</option>
+            </select>
+            <p class="field-error" th:if="${#fields.hasErrors('protocol')}" th:errors="*{protocol}">err</p>
+        </div>
+
+        <div class="field">
+            <label for="description" th:text="#{admin.edge.route.description}">Description</label>
+            <input type="text" id="description" th:field="*{description}">
+        </div>
+
+        <div class="field" th:classappend="${#fields.hasErrors('sortOrder')} ? 'has-error'">
+            <label for="sortOrder" th:text="#{admin.edge.route.order}">Order</label>
+            <input type="number" id="sortOrder" th:field="*{sortOrder}" min="0" max="9999">
+            <p class="field-error" th:if="${#fields.hasErrors('sortOrder')}" th:errors="*{sortOrder}">err</p>
+        </div>
+
+        <div class="field checkbox">
+            <label>
+                <input type="checkbox" th:field="*{enabled}">
+                <span th:text="#{user.form.enabled}">Enabled</span>
+            </label>
+        </div>
+
+        <div class="form-actions">
+            <button type="submit" th:text="#{user.form.save}">Save</button>
+            <a class="link" th:href="@{/admin/edge/routes}" th:text="#{user.form.cancel}">Cancel</a>
+        </div>
+    </form>
+</main>
+</body>
+</html>

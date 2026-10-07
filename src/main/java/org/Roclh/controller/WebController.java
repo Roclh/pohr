@@ -10,6 +10,7 @@ import org.Roclh.service.DeviceDetector;
 import org.Roclh.service.PublicUrlResolver;
 import org.Roclh.service.SubscriptionService;
 import org.Roclh.service.UserService;
+import org.Roclh.service.script.ScriptUpdateService;
 import org.Roclh.service.telegram.TelegramProxyService;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
@@ -21,6 +22,8 @@ import org.springframework.web.servlet.support.ServletUriComponentsBuilder;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
+import java.util.HashMap;
+import java.util.Map;
 
 @Controller
 @RequiredArgsConstructor
@@ -31,6 +34,7 @@ public class WebController {
     private final PublicUrlResolver publicUrlResolver;
     private final TelegramProxyService telegramProxyService;
     private final TelegramProxyUserRepository telegramProxyUserRepository;
+    private final ScriptUpdateService scriptUpdateService;
 
     @GetMapping("/")
     public String root() {
@@ -89,6 +93,12 @@ public class WebController {
                         model.addAttribute("tgProxyUrl", dto.proxyUrl());
                         model.addAttribute("tgWebProxyUrl", dto.webProxyUrl());
                     });
+            String scriptPlatform = DeviceDetector.isMobile(userAgent) ? "any" : "windows";
+            Map<String, ScriptUpdateService.EntrypointUpdates> updates = new HashMap<>();
+            for (var u : scriptUpdateService.checkForPlatform(user.getId(), scriptPlatform, isAdmin)) {
+                updates.put(u.entrypointName(), u);
+            }
+            model.addAttribute("updates", updates);
         }
         return "home";
     }

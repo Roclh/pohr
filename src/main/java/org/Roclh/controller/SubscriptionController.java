@@ -12,6 +12,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Base64;
 import java.util.List;
 
@@ -46,7 +48,11 @@ public class SubscriptionController {
         headers.setContentType(new MediaType("text", "plain", StandardCharsets.UTF_8));
         headers.set("Profile-Title", "Pohr");
         headers.set("Profile-Update-Interval", "6");
-        headers.set("Subscription-Userinfo", "upload=0; download=0; total=0; expire=0");
+
+        long totalBytes = 1024L * 1024 * 1024 * 1024; // 1 TiB — везде показывается как «не ограничено»
+        long expireUnix = Instant.now().plus(Duration.ofDays(3650)).getEpochSecond();
+        headers.set("Subscription-Userinfo",
+                "upload=0; download=0; total=" + totalBytes + "; expire=" + expireUnix);
 
         String subUrl = publicUrlResolver.resolve(request) + "/sub/" + token;
         clientConfigService.findByUserAgent(userAgent).ifPresent(cfg -> {

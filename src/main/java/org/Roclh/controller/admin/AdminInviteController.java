@@ -33,13 +33,13 @@ public class AdminInviteController {
     @GetMapping
     public String list(Model model) {
         model.addAttribute("invites", inviteService.findAll());
-        return "admin/invites";
+        return "admin/invite/invites";
     }
 
     @GetMapping("/new")
     public String newForm(Model model) {
         model.addAttribute("form", new InviteForm("USER", 10080));
-        return "admin/invite-form";
+        return "admin/invite/invite-form";
     }
 
     @PostMapping
@@ -48,7 +48,7 @@ public class AdminInviteController {
                          Authentication auth,
                          RedirectAttributes flash) {
         if (binding.hasErrors()) {
-            return "admin/invite-form";
+            return "admin/invite/invite-form";
         }
         UUID userId = userRepository.findByUsername(auth.getName())
                 .map(User::getId)
@@ -71,7 +71,7 @@ public class AdminInviteController {
         String base = publicUrlResolver.resolve(request);
         model.addAttribute("invite", inv);
         model.addAttribute("inviteUrl", base + "/invite/" + inv.getToken());
-        return "admin/invite-detail";
+        return "admin/invite/invite-detail";
     }
 
     @PostMapping("/{token}/delete")

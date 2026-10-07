@@ -191,9 +191,9 @@ public class TelegramProxyService {
             ensureInstalled();
             Path cfg = writeTelemtConfig(c);
             if (processManager.isRunning()) {
-                processManager.restart(cfg.toString(), c.getListenPort());
+                processManager.restart();
             } else {
-                processManager.start(cfg.toString(), c.getListenPort());
+                processManager.start();
             }
             log.info("telemt reloaded ({} enabled users)", userRepo.countByEnabledTrue());
         } catch (Exception e) {
@@ -211,7 +211,7 @@ public class TelegramProxyService {
         try {
             Path cfg = writeTelemtConfig(c);
             if (!processManager.isRunning()) {
-                processManager.start(cfg.toString(), c.getListenPort());
+                processManager.start();
             }
             log.info("telemt auto-started on :{} ({} enabled users)",
                     c.getListenPort(), userRepo.countByEnabledTrue());
@@ -258,9 +258,9 @@ public class TelegramProxyService {
                 }
 
                 if (processManager.isRunning()) {
-                    processManager.restart(cfg.toString(), c.getListenPort());
+                    processManager.restart();
                 } else {
-                    processManager.start(cfg.toString(), c.getListenPort());
+                    processManager.start();
                 }
             } else {
                 processManager.stop();

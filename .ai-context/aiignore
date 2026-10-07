@@ -28,4 +28,6 @@ LICENSE
 .ai-context
 .gradle
 /scripts/
+gradlew.bat
+xray/config/config.json
 ...

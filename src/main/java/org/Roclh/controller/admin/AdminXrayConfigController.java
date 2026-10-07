@@ -33,14 +33,14 @@ public class AdminXrayConfigController {
     @GetMapping
     public String list(Model model) {
         model.addAttribute("configs", configService.findAll());
-        return "admin/xray-configs";
+        return "admin/xray/xray-configs";
     }
 
     @GetMapping("/new")
     public String createForm(Model model) {
         model.addAttribute("form", new XrayConfigForm("", "", "", ""));
         model.addAttribute("mode", "create");
-        return "admin/xray-config-form";
+        return "admin/xray/xray-config-form";
     }
 
     @PostMapping
@@ -52,7 +52,7 @@ public class AdminXrayConfigController {
         validateRealityKey(form.content(), form.realityPublicKey(), binding);
         if (binding.hasErrors()) {
             model.addAttribute("mode", "create");
-            return "admin/xray-config-form";
+            return "admin/xray/xray-config-form";
         }
         try {
             configService.create(form.name(), form.description(),
@@ -62,7 +62,7 @@ public class AdminXrayConfigController {
         } catch (IllegalArgumentException e) {
             binding.rejectValue("name", "error.xray.config.name.taken");
             model.addAttribute("mode", "create");
-            return "admin/xray-config-form";
+            return "admin/xray/xray-config-form";
         }
     }
 
@@ -94,7 +94,7 @@ public class AdminXrayConfigController {
         model.addAttribute("active", cfg.isActive());
         model.addAttribute("generatedLinesCsv",
                 generatedLines.stream().map(String::valueOf).collect(Collectors.joining(",")));
-        return "admin/xray-config-form";
+        return "admin/xray/xray-config-form";
     }
 
     @PostMapping("/{id}")
@@ -108,7 +108,7 @@ public class AdminXrayConfigController {
         if (binding.hasErrors()) {
             model.addAttribute("mode", "edit");
             model.addAttribute("configId", id);
-            return "admin/xray-config-form";
+            return "admin/xray/xray-config-form";
         }
         try {
             configService.update(id, form.name(), form.description(),
@@ -119,7 +119,7 @@ public class AdminXrayConfigController {
             binding.rejectValue("name", "error.xray.config.name.taken");
             model.addAttribute("mode", "edit");
             model.addAttribute("configId", id);
-            return "admin/xray-config-form";
+            return "admin/xray/xray-config-form";
         }
     }
 

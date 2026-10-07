@@ -59,13 +59,13 @@ public class NativeHints {
                         className,
                         MemberCategory.INVOKE_PUBLIC_METHODS);
             }
-            hints.reflection().registerType(org.Roclh.model.dto.SubscriptionDto.class,  MemberCategory.values());
+            hints.reflection().registerType(org.Roclh.model.dto.SubscriptionDto.class, MemberCategory.values());
             hints.reflection().registerType(org.Roclh.model.dto.SubscriptionForm.class, MemberCategory.values());
-            hints.reflection().registerType(org.Roclh.model.dto.UserDto.class,          MemberCategory.values());
-            hints.reflection().registerType(org.Roclh.model.dto.EuNodeDto.class,        MemberCategory.values());
-            hints.reflection().registerType(org.Roclh.model.dto.EuNodeForm.class,       MemberCategory.values());
-            hints.reflection().registerType(org.Roclh.model.dto.XrayConfigForm.class,   MemberCategory.values());
-            hints.reflection().registerType(org.Roclh.model.dto.ScriptInfo.class,       MemberCategory.values());
+            hints.reflection().registerType(org.Roclh.model.dto.UserDto.class, MemberCategory.values());
+            hints.reflection().registerType(org.Roclh.model.dto.EuNodeDto.class, MemberCategory.values());
+            hints.reflection().registerType(org.Roclh.model.dto.EuNodeForm.class, MemberCategory.values());
+            hints.reflection().registerType(org.Roclh.model.dto.XrayConfigForm.class, MemberCategory.values());
+            hints.reflection().registerType(org.Roclh.model.dto.ScriptInfo.class, MemberCategory.values());
             hints.reflection().registerType(org.Roclh.model.dto.EnrollmentRequest.class, MemberCategory.values());
             hints.reflection().registerType(org.Roclh.model.dto.EnrollmentResponse.class, MemberCategory.values());
             hints.reflection().registerType(org.Roclh.model.dto.NodeHealthRequest.class, MemberCategory.values());
@@ -111,7 +111,7 @@ public class NativeHints {
             hints.reflection().registerType(
                     org.Roclh.model.dto.NodeHealthRequest.class,
                     MemberCategory.values());
-            hints.reflection().registerType(org.Roclh.model.dto.InviteForm.class,       MemberCategory.values());
+            hints.reflection().registerType(org.Roclh.model.dto.InviteForm.class, MemberCategory.values());
             hints.reflection().registerType(org.Roclh.model.dto.InviteAcceptForm.class, MemberCategory.values());
             hints.reflection().registerType(
                     org.Roclh.model.dto.XrayClientOption.class,
@@ -137,6 +137,22 @@ public class NativeHints {
                     MemberCategory.values());
             hints.reflection().registerType(
                     org.Roclh.model.dto.MultiChartDto.class,
+                    MemberCategory.values());
+            hints.reflection().registerType(org.Roclh.model.dto.edge.EdgeStatusDto.class, MemberCategory.values());
+            hints.reflection().registerType(org.Roclh.model.dto.edge.EdgeConfigForm.class, MemberCategory.values());
+            hints.reflection().registerType(org.Roclh.model.dto.edge.EdgeRouteForm.class, MemberCategory.values());
+            hints.reflection().registerType(org.Roclh.model.dto.edge.EdgeRouteDto.class, MemberCategory.values());
+            hints.reflection().registerType(org.Roclh.model.dto.edge.EdgeSiteForm.class, MemberCategory.values());
+            hints.reflection().registerType(org.Roclh.model.dto.edge.EdgeSiteDto.class, MemberCategory.values());
+            // Nested records в контроллерах скриптов
+            hints.reflection().registerType(
+                    org.Roclh.controller.admin.AdminScriptController.Row.class,
+                    MemberCategory.values());
+            hints.reflection().registerType(
+                    org.Roclh.model.script.Script.class,
+                    MemberCategory.values());
+            hints.reflection().registerType(
+                    org.Roclh.model.script.ScriptVersion.class,
                     MemberCategory.values());
         }
     }

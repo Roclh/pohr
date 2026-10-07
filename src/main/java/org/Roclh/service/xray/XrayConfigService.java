@@ -43,10 +43,6 @@ public class XrayConfigService {
 
     // --- Чтение ---------------------------------------------------------------
 
-    public Optional<XrayConfig> findActive() {
-        return repository.findByActiveTrue();
-    }
-
     public XrayConfig getActiveOrThrow() {
         return repository.findByActiveTrue()
                 .orElseThrow(() -> new IllegalStateException("No active Xray config"));

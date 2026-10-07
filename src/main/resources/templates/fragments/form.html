@@ -1,0 +1,8 @@
+<div th:fragment="field(fieldName, labelKey, type, hintKey, errorKey)" class="field"
+     th:classappend="${#fields.hasErrors(fieldName)} ? 'has-error'">
+    <label th:for="${fieldName}" th:text="#{${labelKey}}">Label</label>
+    <input th:type="${type}" th:id="${fieldName}" th:field="*{__${fieldName}__}">
+    <p class="hint" th:if="${hintKey != null and hintKey != ''}" th:text="#{${hintKey}}"></p>
+    <p class="field-error" th:if="${#fields.hasErrors(fieldName)}"
+       th:errors="*{__${fieldName}__}">err</p>
+</div>

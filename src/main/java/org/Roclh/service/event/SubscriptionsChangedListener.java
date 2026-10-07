@@ -32,8 +32,6 @@ public class SubscriptionsChangedListener {
                         event.reason());
             }
         } catch (Exception e) {
-            // Не роняем запрос пользователя: подписка уже создана, Xray
-            // подтянет её при следующем ручном restart через UI.
             log.error("Failed to apply subscription change to Xray: {}", e.getMessage(), e);
         }
     }

@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head(#{admin.mcp.pageTitle})}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<nav th:replace="~{fragments/layout :: crumbs('admin.mcp.pageTitle', 'nav.admin', '/admin')}"></nav>
+
+<main class="container">
+    <h1 th:text="#{admin.mcp.pageTitle}">DeepSeek Harness (MCP)</h1>
+
+    <div th:if="${successMessage}" class="alert success" th:text="#{${successMessage}}"></div>
+    <div th:if="${errorMessage}" class="alert error" th:text="${errorMessage}"></div>
+
+    <section class="card">
+        <p th:text="#{admin.mcp.intro}">
+            MCP-сервер Pohr даёт агенту DeepSeek Harness доступ к скриптам:
+            чтение, историю версий, авторство, создание, редактирование и бэкапы.
+        </p>
+        <p>
+            <b th:text="#{admin.mcp.endpoint}">Endpoint:</b>
+            <code th:text="${mcpUrl}">https://pohr.example.com/mcp</code>
+        </p>
+        <p class="muted" th:text="#{admin.mcp.urlHint}">
+            Если DSH запущен на другой машине, URL должен быть доступен извне
+            (задайте POHR_PUBLIC_URL).
+        </p>
+        <form th:action="@{/admin/mcp/install}" method="post" class="form">
+            <div class="form-actions">
+                <button type="submit" th:text="#{admin.mcp.installNow}">
+                    Создать токен и скачать установщик
+                </button>
+            </div>
+        </form>
+        <p class="muted" th:text="#{admin.mcp.installNowHint}">
+            Один клик: создаёт новый токен и скачивает .bat, который сам настроит DSH.
+        </p>
+    </section>
+
+    <!-- Новый токен: показывается только что созданный -->
+    <section class="card" th:if="${newToken != null}">
+        <h2 th:text="#{admin.mcp.newTokenTitle}">Новый токен</h2>
+        <div class="alert info">
+            <span th:text="#{admin.mcp.newTokenHint}">
+                Скопируйте токен или сразу скачайте установщик. Повторно токен показать нельзя.
+            </span>
+        </div>
+        <p>
+            <code id="new-token" style="word-break: break-all;" th:text="${newToken}">pohr_...</code>
+        </p>
+        <div class="form-actions">
+            <button type="button" class="link-button on-light"
+                    onclick="navigator.clipboard.writeText(document.getElementById('new-token').textContent)"
+                    th:text="#{admin.mcp.copy}">Скопировать</button>
+
+            <form th:action="@{/admin/mcp/setup.bat}" method="post" class="inline">
+                <input type="hidden" name="token" th:value="${newToken}">
+                <button type="submit" th:text="#{admin.mcp.download}">Скачать установщик .bat</button>
+            </form>
+
+            <form th:action="@{/admin/mcp/tokens/forget}" method="post" class="inline">
+                <button type="submit" class="link-button on-light"
+                        th:text="#{admin.mcp.hideToken}">Скрыть токен</button>
+            </form>
+        </div>
+    </section>
+
+    <!-- Создание токена -->
+    <section class="card">
+        <h2 th:text="#{admin.mcp.createTitle}">Токены</h2>
+        <form th:action="@{/admin/mcp/tokens}" method="post" class="form">
+            <div class="field">
+                <label for="name" th:text="#{admin.mcp.tokenName}">Название</label>
+                <input type="text" id="name" name="name" maxlength="64"
+                       th:placeholder="#{admin.mcp.tokenNamePlaceholder}" value="DeepSeek Harness">
+            </div>
+            <div class="form-actions">
+                <button type="submit" th:text="#{admin.mcp.create}">Создать токен</button>
+            </div>
+        </form>
+
+        <table class="table" th:if="${!#lists.isEmpty(tokens)}">
+            <thead>
+            <tr>
+                <th th:text="#{admin.mcp.colName}">Название</th>
+                <th th:text="#{admin.mcp.colPrefix}">Префикс</th>
+                <th th:text="#{admin.mcp.colCreated}">Создан</th>
+                <th th:text="#{admin.mcp.colLastUsed}">Последнее использование</th>
+                <th th:text="#{admin.mcp.colStatus}">Статус</th>
+                <th class="actions" th:text="#{admin.mcp.colActions}">Действия</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="t : ${tokens}">
+                <td data-label="Название" th:text="${t.name()}">DeepSeek Harness</td>
+                <td data-label="Префикс"><code th:text="${t.prefix()}">pohr_abc…</code></td>
+                <td data-label="Создан" th:text="${t.createdAt()}">2026-10-24T12:00:00Z</td>
+                <td data-label="Последнее использование">
+                    <span th:if="${t.lastUsedAt() != null}" th:text="${t.lastUsedAt()}">2026-10-24T12:00:00Z</span>
+                    <span th:if="${t.lastUsedAt() == null}" th:text="#{admin.mcp.never}">никогда</span>
+                </td>
+                <td data-label="Статус">
+                    <span th:if="${!t.revoked()}" class="badge enabled"
+                          th:text="#{admin.mcp.active}">active</span>
+                    <span th:if="${t.revoked()}" class="badge disabled"
+                          th:text="#{admin.mcp.revoked}">revoked</span>
+                </td>
+                <td class="actions">
+                    <form th:if="${!t.revoked()}"
+                          th:action="@{/admin/mcp/tokens/{id}/revoke(id=${t.id()})}"
+                          method="post" class="inline"
+                          onsubmit="return confirm(this.dataset.confirm)"
+                          th:data-confirm="#{admin.mcp.revokeConfirm}">
+                        <button type="submit" class="link-button danger on-light"
+                                th:text="#{admin.mcp.revoke}">Отозвать</button>
+                    </form>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+        <p th:if="${#lists.isEmpty(tokens)}" class="muted"
+           th:text="#{admin.mcp.noTokens}">Токенов пока нет.</p>
+    </section>
+
+    <!-- Установка -->
+    <section class="card">
+        <h2 th:text="#{admin.mcp.installTitle}">Установка в DeepSeek Harness</h2>
+        <ol>
+            <li th:text="#{admin.mcp.installStep1}">
+                Создайте токен и скачайте установщик .ps1.
+            </li>
+            <li th:text="#{admin.mcp.installStep2}">
+                Запустите его в PowerShell на машине, где установлен DSH.
+            </li>
+            <li th:text="#{admin.mcp.installStep3}">
+                Перезапустите DeepSeek Harness. В новой сессии появятся инструменты mcp__pohr__*.
+            </li>
+        </ol>
+        <p class="muted" th:text="#{admin.mcp.installCommand}">
+            .\pohr-dsh-mcp-setup.bat
+        </p>
+
+        <details>
+            <summary th:text="#{admin.mcp.manualTitle}">Ручная настройка</summary>
+            <p th:text="#{admin.mcp.manualHint}">
+                Добавьте блок в ~/.dsh/profiles/desktop/cordis.patch.yml.
+            </p>
+            <pre class="logs" style="max-height: 22rem;" th:text="${manualYaml}"></pre>
+        </details>
+    </section>
+
+    <!-- Безопасность -->
+    <section class="card">
+        <h2 th:text="#{admin.mcp.securityTitle}">Безопасность</h2>
+        <p th:text="#{admin.mcp.security}">
+            Токен даёт полный доступ к скриптам. Храните его только в cordis.patch.yml,
+            не коммитьте и не пересылайте. Отозванный токен перестаёт работать сразу.
+        </p>
+    </section>
+
+    <!-- Инструменты -->
+    <section class="card">
+        <h2 th:text="#{admin.mcp.toolsTitle}">Инструменты</h2>
+        <p th:text="#{admin.mcp.toolsHint}">
+            Агенту доступны:
+        </p>
+        <p>
+            <code>pohr_rules</code> · <code>scripts_list</code> · <code>scripts_read</code> ·
+            <code>scripts_history</code> · <code>scripts_create</code> · <code>scripts_update</code> ·
+            <code>scripts_update_meta</code> · <code>scripts_bump_major</code> ·
+            <code>scripts_rollback</code> · <code>scripts_backup</code> ·
+            <code>scripts_backups</code> · <code>scripts_restore_backup</code> ·
+            <code>scripts_validate</code> · <code>scripts_reseed</code> · <code>scripts_delete</code>
+        </p>
+    </section>
+</main>
+</body>
+</html>

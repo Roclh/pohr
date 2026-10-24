@@ -28,8 +28,9 @@ import java.util.stream.Collectors;
 public class ScriptVersionService {
 
     private static final DateTimeFormatter SNAPSHOT_STAMP =
-            DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss");
+            DateTimeFormatter.ofPattern("yyyyMMdd-HHmmss-SSS");
     private static final int KEEP_LAST_VERSIONS = 5;
+    private static final String SYSTEM_ACTOR = "system";
 
     private final ScriptVersionRepository versionRepo;
 
@@ -66,6 +67,16 @@ public class ScriptVersionService {
                                          String hash,
                                          long size,
                                          ScriptVersionSource source) {
+        return registerInitial(scriptId, hash, size, source, SYSTEM_ACTOR, null);
+    }
+
+    @Transactional
+    public ScriptVersion registerInitial(UUID scriptId,
+                                         String hash,
+                                         long size,
+                                         ScriptVersionSource source,
+                                         String changedBy,
+                                         String note) {
         ScriptVersionNumber v = ScriptVersionNumber.initial();
         ScriptVersion sv = ScriptVersion.builder()
                 .scriptId(scriptId)
@@ -75,6 +86,8 @@ public class ScriptVersionService {
                 .hash(hash)
                 .size((int) size)
                 .source(source)
+                .changedBy(actor(changedBy))
+                .changeNote(trimNote(note))
                 .build();
         ScriptVersion saved = versionRepo.save(sv);
         log.info("Registered initial version {} for script {} ({})", v, scriptId, source);
@@ -91,16 +104,27 @@ public class ScriptVersionService {
                                    long size,
                                    ScriptVersionSource source,
                                    byte[] contentForSnapshot) {
+        return bumpMinor(scriptId, hash, size, source, contentForSnapshot, SYSTEM_ACTOR, null);
+    }
+
+    @Transactional
+    public ScriptVersion bumpMinor(UUID scriptId,
+                                   String hash,
+                                   long size,
+                                   ScriptVersionSource source,
+                                   byte[] contentForSnapshot,
+                                   String changedBy,
+                                   String note) {
         ScriptVersion active = getActive(scriptId).orElse(null);
         if (active == null) {
-            return registerInitial(scriptId, hash, size, source);
+            return registerInitial(scriptId, hash, size, source, changedBy, note);
         }
 
         ScriptVersionNumber current = ScriptVersionNumber.parse(active.getVersion());
         ScriptVersionNumber next = current.nextMinor();
 
         return registerNewVersion(scriptId, next, hash, size, source, active,
-                contentForSnapshot, null);
+                contentForSnapshot, null, changedBy, note);
     }
 
     /**
@@ -111,16 +135,26 @@ public class ScriptVersionService {
                                    String hash,
                                    long size,
                                    ScriptVersionSource source) {
+        return bumpMajor(scriptId, hash, size, source, SYSTEM_ACTOR, null);
+    }
+
+    @Transactional
+    public ScriptVersion bumpMajor(UUID scriptId,
+                                   String hash,
+                                   long size,
+                                   ScriptVersionSource source,
+                                   String changedBy,
+                                   String note) {
         ScriptVersion active = getActive(scriptId).orElse(null);
         if (active == null) {
-            return registerInitial(scriptId, hash, size, source);
+            return registerInitial(scriptId, hash, size, source, changedBy, note);
         }
 
         ScriptVersionNumber current = ScriptVersionNumber.parse(active.getVersion());
         ScriptVersionNumber next = current.nextMajor();
 
         return registerNewVersion(scriptId, next, hash, size, source, active,
-                null, null);
+                null, null, changedBy, note);
     }
 
     /**
@@ -133,6 +167,17 @@ public class ScriptVersionService {
                                   String hash,
                                   long size,
                                   byte[] contentForSnapshot) {
+        return rollback(scriptId, targetVersionId, hash, size, contentForSnapshot, SYSTEM_ACTOR, null);
+    }
+
+    @Transactional
+    public ScriptVersion rollback(UUID scriptId,
+                                  UUID targetVersionId,
+                                  String hash,
+                                  long size,
+                                  byte[] contentForSnapshot,
+                                  String changedBy,
+                                  String note) {
         ScriptVersion target = versionRepo.findById(targetVersionId)
                 .orElseThrow(() -> new IllegalArgumentException("Version not found: " + targetVersionId));
         if (!target.getScriptId().equals(scriptId)) {
@@ -149,7 +194,7 @@ public class ScriptVersionService {
                 scriptId, current, target.getVersion(), next);
 
         return registerNewVersion(scriptId, next, hash, size, ScriptVersionSource.ROLLBACK,
-                active, contentForSnapshot, target.getId());
+                active, contentForSnapshot, target.getId(), changedBy, note);
     }
 
     private ScriptVersion registerNewVersion(UUID scriptId,
@@ -159,7 +204,9 @@ public class ScriptVersionService {
                                              ScriptVersionSource source,
                                              ScriptVersion previousActive,
                                              byte[] contentForSnapshot,
-                                             UUID restoreOf) {
+                                             UUID restoreOf,
+                                             String changedBy,
+                                             String note) {
         // 1. Снапшот предыдущей активной — до инвалидации
         if (contentForSnapshot != null) {
             try {
@@ -185,6 +232,8 @@ public class ScriptVersionService {
                 .size((int) size)
                 .source(source)
                 .restoreOf(restoreOf)
+                .changedBy(actor(changedBy))
+                .changeNote(trimNote(note))
                 .build();
         ScriptVersion saved = versionRepo.save(sv);
         log.info("Registered version {} for script {} ({}, hash={})",
@@ -210,7 +259,15 @@ public class ScriptVersionService {
         String stamp = SNAPSHOT_STAMP.format(LocalDateTime.now());
         String fileName = scriptId + "." + version + "." + stamp + ".bak";
         Path target = dir.resolve(fileName);
-        Files.write(target, content, StandardOpenOption.CREATE_NEW);
+        try {
+            Files.write(target, content, StandardOpenOption.CREATE_NEW);
+        } catch (FileAlreadyExistsException e) {
+            // Два бэкапа в одну миллисекунду — добавляем короткий суффикс.
+            fileName = scriptId + "." + version + "." + stamp + "-"
+                    + UUID.randomUUID().toString().substring(0, 8) + ".bak";
+            target = dir.resolve(fileName);
+            Files.write(target, content, StandardOpenOption.CREATE_NEW);
+        }
         log.debug("Snapshot written: {}", target);
         return target;
     }
@@ -225,6 +282,137 @@ public class ScriptVersionService {
             throw new IOException("Snapshot not found: " + snapshotPath);
         }
         return Files.readAllBytes(p);
+    }
+
+    // =====================================================================
+    // Ручные бэкапы (MCP scripts_backup)
+    // =====================================================================
+
+    public record BackupInfo(String fileName, String version, Instant createdAt, long size) {}
+
+    /** Копирует текущее содержимое в .history/ и возвращает путь к файлу. */
+    public Path createManualBackup(UUID scriptId, String version, byte[] content) throws IOException {
+        return writeSnapshot(scriptId, version, content);
+    }
+
+    /**
+     * Список снапшотов скрипта (свежие первыми).
+     *
+     * <p>Сначала берём пути из БД: это надёжно работает даже если старые
+     * снапшоты лежат не в текущем {@code scriptsHome/.history} или названы
+     * по-старому. Затем добавляем ручные .bak из .history, которых в БД нет.</p>
+     */
+    public List<BackupInfo> listBackups(UUID scriptId) throws IOException {
+        Map<String, BackupInfo> byPath = new LinkedHashMap<>();
+
+        // 1. Снапшоты, на которые ссылается история версий.
+        for (ScriptVersion version : versionRepo
+                .findByScriptIdOrderByVersionMajorDescVersionMinorDesc(scriptId)) {
+            if (version.getSnapshotPath() == null || version.getSnapshotPath().isBlank()) {
+                continue;
+            }
+            try {
+                Path path = Path.of(version.getSnapshotPath());
+                if (!Files.isRegularFile(path)) {
+                    continue;
+                }
+                BackupInfo info = backupInfo(path, version.getVersion());
+                if (info != null) {
+                    byPath.putIfAbsent(path.toAbsolutePath().normalize().toString(), info);
+                }
+            } catch (Exception e) {
+                log.warn("Failed to stat snapshot {}: {}", version.getSnapshotPath(), e.getMessage());
+            }
+        }
+
+        // 2. Ручные бэкапы, созданные scripts_backup (в БД их нет).
+        Path dir = historyDir();
+        if (Files.exists(dir)) {
+            String prefix = scriptId + ".";
+            try (var stream = Files.list(dir)) {
+                stream.filter(Files::isRegularFile)
+                        .filter(p -> {
+                            String n = p.getFileName().toString();
+                            return n.startsWith(prefix) && n.endsWith(".bak");
+                        })
+                        .map(this::toBackupInfo)
+                        .filter(Objects::nonNull)
+                        .forEach(b -> byPath.putIfAbsent(
+                                dir.resolve(b.fileName()).toAbsolutePath().normalize().toString(), b));
+            }
+        }
+
+        return byPath.values().stream()
+                .sorted(Comparator.comparing(BackupInfo::createdAt).reversed())
+                .toList();
+    }
+
+    /**
+     * Читает снапшот по имени файла. Разрешены только файлы этого скрипта
+     * внутри .history/ — защита от path traversal.
+     */
+    public byte[] readBackup(UUID scriptId, String fileName) throws IOException {
+        if (fileName == null || fileName.isBlank()) {
+            throw new IllegalArgumentException("Не указан файл бэкапа");
+        }
+        Path asPath = Path.of(fileName);
+        if (!asPath.getFileName().toString().equals(fileName)) {
+            throw new IllegalArgumentException("Ожидается имя файла без пути: " + fileName);
+        }
+
+        // Сначала ищем среди путей из БД: старые снапшоты могут лежать
+        // не в текущем scriptsHome/.history и называться иначе.
+        for (ScriptVersion version : versionRepo
+                .findByScriptIdOrderByVersionMajorDescVersionMinorDesc(scriptId)) {
+            if (version.getSnapshotPath() == null || version.getSnapshotPath().isBlank()) {
+                continue;
+            }
+            Path snapshot = Path.of(version.getSnapshotPath());
+            if (snapshot.getFileName().toString().equals(fileName) && Files.isRegularFile(snapshot)) {
+                return Files.readAllBytes(snapshot);
+            }
+        }
+
+        if (!fileName.startsWith(scriptId + ".")) {
+            throw new IllegalArgumentException("Бэкап не принадлежит этому скрипту: " + fileName);
+        }
+        Path dir = historyDir().toAbsolutePath().normalize();
+        Path target = dir.resolve(fileName).normalize();
+        if (!target.startsWith(dir) || !Files.isRegularFile(target)) {
+            throw new IllegalArgumentException("Бэкап не найден: " + fileName);
+        }
+        return Files.readAllBytes(target);
+    }
+
+    private BackupInfo toBackupInfo(Path path) {
+        String name = path.getFileName().toString();
+        int firstDot = name.indexOf('.');
+        if (firstDot <= 0 || !name.endsWith(".bak")) return null;
+
+        // {scriptId}.{version}.{stamp}.bak
+        String withoutBak = name.substring(firstDot + 1, name.length() - ".bak".length());
+        int lastDot = withoutBak.lastIndexOf('.');
+        if (lastDot <= 0) return null;
+        String version = withoutBak.substring(0, lastDot);
+        if (!version.matches("\\d+\\.\\d+")) return null;
+        return backupInfo(path, version);
+    }
+
+    private BackupInfo backupInfo(Path path, String version) {
+        try {
+            return new BackupInfo(
+                    path.getFileName().toString(),
+                    version,
+                    Files.getLastModifiedTime(path).toInstant(),
+                    Files.size(path));
+        } catch (IOException e) {
+            log.warn("Failed to stat backup {}: {}", path, e.getMessage());
+            return null;
+        }
+    }
+
+    public Path getHistoryDir() {
+        return historyDir();
     }
 
     /**
@@ -280,6 +468,28 @@ public class ScriptVersionService {
                 log.warn("Failed to delete snapshot {}: {}", v.getSnapshotPath(), e.getMessage());
             }
         }
+
+        // Ручные .bak из .history не имеют строки в БД — удаляем по префиксу id.
+        Path dir = historyDir();
+        if (Files.exists(dir)) {
+            String prefix = scriptId + ".";
+            try (var stream = Files.list(dir)) {
+                stream.filter(Files::isRegularFile)
+                        .filter(p -> {
+                            String n = p.getFileName().toString();
+                            return n.startsWith(prefix) && n.endsWith(".bak");
+                        })
+                        .forEach(p -> {
+                            try {
+                                Files.deleteIfExists(p);
+                            } catch (IOException e) {
+                                log.warn("Failed to delete manual backup {}: {}", p, e.getMessage());
+                            }
+                        });
+            } catch (IOException e) {
+                log.warn("Failed to scan .history for script {}: {}", scriptId, e.getMessage());
+            }
+        }
     }
 
     // =====================================================================
@@ -298,5 +508,21 @@ public class ScriptVersionService {
         } catch (Exception e) {
             throw new IllegalStateException("SHA-256 unavailable", e);
         }
+    }
+
+    private static String actor(String value) {
+        if (value == null || value.isBlank()) {
+            return SYSTEM_ACTOR;
+        }
+        String trimmed = value.trim();
+        return trimmed.length() > 64 ? trimmed.substring(0, 64) : trimmed;
+    }
+
+    private static String trimNote(String note) {
+        if (note == null || note.isBlank()) {
+            return null;
+        }
+        String trimmed = note.trim();
+        return trimmed.length() > 512 ? trimmed.substring(0, 512) : trimmed;
     }
 }

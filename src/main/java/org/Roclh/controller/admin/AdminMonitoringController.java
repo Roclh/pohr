@@ -6,6 +6,7 @@ import org.Roclh.model.dto.MetricsSnapshot;
 import org.Roclh.model.dto.NamedSeries;
 import org.Roclh.service.metric.MetricsService;
 import org.Roclh.service.node.EuNodeService;
+import org.Roclh.service.traffic.ClientTrafficService;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -27,6 +28,7 @@ public class AdminMonitoringController {
 
     private final MetricsService metricsService;
     private final EuNodeService euNodeService;
+    private final ClientTrafficService clientTrafficService;
 
     @GetMapping
     public String page(Model model) {
@@ -70,7 +72,22 @@ public class AdminMonitoringController {
                 euNodeService.findAll().stream().map(EuNodeDto::from).toList());
         model.addAttribute("nodes", nodes);
 
+        model.addAttribute("trafficSummary", clientTrafficService.summary());
+        model.addAttribute("trafficRows", clientTrafficService.overview());
+
+        var flowSamples = clientTrafficService.last24h();
+        model.addAttribute("flowsChart", MetricsService.buildMultiChart(List.of(
+                new NamedSeries("Connections", "chart-line-pod", false,
+                        flowSamples.stream().map(s -> toDouble(s.getActiveConnections())).toList()),
+                new NamedSeries("Active clients", "chart-line-xray", true,
+                        flowSamples.stream().map(s -> toDouble(s.getActiveUsers())).toList())
+        ), "", 600, 120));
+
         return "admin/monitoring";
+    }
+
+    private static Double toDouble(Integer value) {
+        return value == null ? null : value.doubleValue();
     }
 
     private static Double toMb(Long bytes) {

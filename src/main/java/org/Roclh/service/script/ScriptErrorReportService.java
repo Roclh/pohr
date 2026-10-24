@@ -113,6 +113,22 @@ public class ScriptErrorReportService {
         });
     }
 
+    /** Смена статуса без удаления отчёта — используется MCP-агентом. */
+    @Transactional
+    public ScriptErrorReport setStatus(UUID id, ScriptErrorStatus status, UUID actor) {
+        ScriptErrorReport report = repo.findById(id)
+                .orElseThrow(() -> new IllegalArgumentException("Отчёт не найден: " + id));
+        report.setStatus(status);
+        if (status == ScriptErrorStatus.RESOLVED) {
+            report.setResolvedAt(Instant.now());
+            report.setResolvedBy(actor);
+        } else {
+            report.setResolvedAt(null);
+            report.setResolvedBy(null);
+        }
+        return repo.save(report);
+    }
+
     @Transactional
     public void deleteResolved(UUID id) {
         repo.findById(id).ifPresent(r -> {

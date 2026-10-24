@@ -7,6 +7,10 @@ public enum ScriptVersionSource {
     UI_CREATE,
     /** Изменён через /admin/scripts/{id}/edit. */
     UI_EDIT,
+    /** Создан через MCP-инструмент scripts_create. */
+    MCP_CREATE,
+    /** Изменён через MCP-инструмент scripts_update/backup-restore. */
+    MCP_EDIT,
     /** Обнаружено изменение файла в volume при сканировании. */
     VOLUME_RESCAN,
     /** Откат на предыдущую версию. */

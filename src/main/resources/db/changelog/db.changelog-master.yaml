@@ -23,3 +23,7 @@ databaseChangeLog:
       file: db/changelog/011-edge/edge.sql
   - include:
       file: db/changelog/012-scripts/scripts.sql
+  - include:
+      file: db/changelog/013-mcp/mcp.sql
+  - include:
+      file: db/changelog/014-traffic/traffic.sql

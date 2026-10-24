@@ -5,7 +5,7 @@ WORKDIR /build
 
 COPY gradle gradle
 COPY gradlew gradlew
-COPY settings.gradle build.gradle ./
+COPY settings.gradle build.gradle scripts.md ./
 
 # Генерируем свой gradle.properties — без Windows-путей и без auto-detect
 RUN printf 'org.gradle.jvmargs=-Xmx4g\norg.gradle.parallel=false\norg.gradle.daemon=false\n' \

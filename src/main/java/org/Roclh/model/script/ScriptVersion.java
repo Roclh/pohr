@@ -53,6 +53,14 @@ public class ScriptVersion {
     @Column(name = "restore_of", length = 36)
     private UUID restoreOf;
 
+    /** Username автора изменения; NULL у старых версий и автосканирования. */
+    @Column(name = "changed_by", length = 64)
+    private String changedBy;
+
+    /** Необязательный комментарий к версии. */
+    @Column(name = "change_note", length = 512)
+    private String changeNote;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 

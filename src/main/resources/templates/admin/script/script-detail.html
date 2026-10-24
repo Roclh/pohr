@@ -79,6 +79,10 @@
                   th:text="${#strings.substringBefore(activeVersion.getCreatedAt().toString(), '.')}">
                 2026-10-07T15:00:00
             </span>
+            <span class="muted" th:if="${activeVersion.getChangedBy() != null}"
+                  th:text="|· ${activeVersion.getChangedBy()}|">· admin</span>
+            <span class="muted" th:if="${activeVersion.getChangeNote() != null}"
+                  th:text="|— ${activeVersion.getChangeNote()}|">— note</span>
         </p>
         <p th:if="${activeVersion == null}" class="muted"
            th:text="#{admin.scriptsCatalog.noActive}">Нет активной версии.</p>
@@ -121,7 +125,9 @@
             <tr>
                 <th th:text="#{admin.scriptsCatalog.version}">Версия</th>
                 <th th:text="#{admin.scriptsCatalog.source}">Источник</th>
+                <th th:text="#{admin.scriptsCatalog.changedBy}">Кто изменил</th>
                 <th th:text="#{admin.scriptsCatalog.created}">Создана</th>
+                <th th:text="#{admin.scriptsCatalog.note}">Комментарий</th>
                 <th th:text="#{admin.scriptsCatalog.snapshot}">Снапшот</th>
                 <th class="actions" th:text="#{admin.scriptsCatalog.actions}">Действия</th>
             </tr>
@@ -133,10 +139,14 @@
                     <span th:if="${v.isActive()}" class="badge enabled">active</span>
                 </td>
                 <td data-label="Источник" th:text="${v.getSource().name()}">UI_EDIT</td>
+                <td data-label="Кто изменил">
+                    <span th:text="${v.getChangedBy() != null ? v.getChangedBy() : 'system'}">admin</span>
+                </td>
                 <td data-label="Создана"
                     th:text="${#strings.substringBefore(v.getCreatedAt().toString(), '.')}">
                     2026-10-07T15:00:00
                 </td>
+                <td data-label="Комментарий" th:text="${v.getChangeNote()}">—</td>
                 <td data-label="Снапшот">
                     <span th:if="${v.getSnapshotPath() != null}" class="badge enabled">yes</span>
                     <span th:if="${v.getSnapshotPath() == null}" class="badge disabled">no</span>

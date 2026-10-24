@@ -59,3 +59,12 @@ graalvmNative {
 test {
     useJUnitPlatform()
 }
+
+// MCP-инструмент pohr_rules отдаёт актуальный scripts.md.
+// Копируем его в classpath на этапе сборки, чтобы не держать вторую копию.
+processResources {
+    from('scripts.md') {
+        into 'mcp'
+        rename { 'scripts-contract.md' }
+    }
+}

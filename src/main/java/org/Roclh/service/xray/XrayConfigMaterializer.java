@@ -41,6 +41,10 @@ public class XrayConfigMaterializer {
     @Value("${pohr.telegram.socks-port:10809}")
     private int telemtSocksPort;
 
+    /** Локальный gRPC/CLI API Xray. Слушает только 127.0.0.1. */
+    @Value("${pohr.xray.api-port:10085}")
+    private int xrayApiPort;
+
     public Path configPath() {
         return Path.of(xrayHome, "config", "config.json");
     }
@@ -53,6 +57,7 @@ public class XrayConfigMaterializer {
             JsonNode root = objectMapper.readTree(cfg.getContent());
             injectEuOutbound(root);
             injectTelemtSocksInbound(root);
+            injectApi(root);
             injectClients(root);
             String finalContent = objectMapper.writerWithDefaultPrettyPrinter()
                     .writeValueAsString(root);
@@ -115,6 +120,92 @@ public class XrayConfigMaterializer {
         log.info("Injected telemt-socks inbound on 127.0.0.1:{}", telemtSocksPort);
     }
 
+    /**
+     * Включает статистику Xray и локальный API.
+     *
+     * <p>Без этого блока Xray не считает трафик по пользователям: нужны
+     * top-level {@code stats}, inbound {@code dokodemo-door} с тегом {@code api},
+     * правило маршрутизации на этот тег и policy-флаги
+     * {@code statsUserUplink/Downlink/Online} для уровня 0.</p>
+     *
+     * <p>API слушает только 127.0.0.1 и наружу не публикуется.</p>
+     */
+    private void injectApi(JsonNode root) {
+        if (!(root instanceof ObjectNode rootObj)) return;
+
+        rootObj.putObject("stats");
+
+        ObjectNode api = rootObj.putObject("api");
+        api.put("tag", "api");
+        ArrayNode services = api.putArray("services");
+        services.add("StatsService");
+        services.add("HandlerService");
+        services.add("LoggerService");
+
+        ArrayNode inbounds = ensureArray(rootObj, "inbounds");
+        removeByTag(inbounds, "api");
+        ObjectNode apiInbound = objectMapper.createObjectNode();
+        apiInbound.put("tag", "api");
+        apiInbound.put("listen", "127.0.0.1");
+        apiInbound.put("port", xrayApiPort);
+        apiInbound.put("protocol", "dokodemo-door");
+        apiInbound.putObject("settings").put("address", "127.0.0.1");
+        inbounds.add(apiInbound);
+
+        ObjectNode routing;
+        JsonNode routingNode = rootObj.get("routing");
+        if (routingNode instanceof ObjectNode existing) {
+            routing = existing;
+        } else {
+            routing = rootObj.putObject("routing");
+            routing.put("domainStrategy", "IPIfNonMatch");
+        }
+        ArrayNode rules;
+        JsonNode rulesNode = routing.get("rules");
+        if (rulesNode instanceof ArrayNode existingRules) {
+            rules = existingRules;
+        } else {
+            rules = routing.putArray("rules");
+        }
+        // Убираем ранее сгенерированное правило, чтобы не накапливалось.
+        for (int i = rules.size() - 1; i >= 0; i--) {
+            JsonNode tags = rules.get(i).path("inboundTag");
+            if (tags.isArray() && tags.size() == 1 && "api".equals(tags.get(0).asText())) {
+                rules.remove(i);
+            }
+        }
+        ObjectNode apiRule = objectMapper.createObjectNode();
+        apiRule.put("type", "field");
+        apiRule.putArray("inboundTag").add("api");
+        apiRule.put("outboundTag", "api");
+        ArrayNode newRules = objectMapper.createArrayNode();
+        newRules.add(apiRule);
+        rules.forEach(newRules::add);
+        routing.set("rules", newRules);
+
+        ObjectNode policy;
+        if (rootObj.get("policy") instanceof ObjectNode existingPolicy) {
+            policy = existingPolicy;
+        } else {
+            policy = rootObj.putObject("policy");
+        }
+        ObjectNode levels;
+        if (policy.get("levels") instanceof ObjectNode existingLevels) {
+            levels = existingLevels;
+        } else {
+            levels = policy.putObject("levels");
+        }
+        ObjectNode level0;
+        if (levels.get("0") instanceof ObjectNode existingLevel0) {
+            level0 = existingLevel0;
+        } else {
+            level0 = levels.putObject("0");
+        }
+        level0.put("statsUserUplink", true);
+        level0.put("statsUserDownlink", true);
+        level0.put("statsUserOnline", true);
+    }
+
     /** Строит два представления: исходный конфиг из БД и материализованный (со вставками). */
     public XrayConfigPreview preview() {
         XrayConfig cfg = configService.getActiveOrThrow();
@@ -123,6 +214,7 @@ public class XrayConfigMaterializer {
         JsonNode materialized = original.deepCopy();
         injectEuOutbound(materialized);
         injectTelemtSocksInbound(materialized);
+        injectApi(materialized);
         injectClients(materialized);
 
         var writer = objectMapper.writerWithDefaultPrettyPrinter();
@@ -151,6 +243,7 @@ public class XrayConfigMaterializer {
             if (root.get("inbounds") instanceof ArrayNode inbounds) {
                 removeByTag(inbounds, "healthcheck-socks");
                 removeByTag(inbounds, "telemt-socks");
+                removeByTag(inbounds, "api");
                 // clients инжектятся из подписок при каждой материализации
                 for (JsonNode in : inbounds) {
                     if (!(in instanceof ObjectNode inObj)) continue;
@@ -163,6 +256,19 @@ public class XrayConfigMaterializer {
 
             if (root.get("outbounds") instanceof ArrayNode outbounds) {
                 removeByTag(outbounds, "eu");
+            }
+
+            // Сгенерированные мониторингом ключи не должны попадать в БД.
+            root.remove("api");
+            if (root.get("stats") instanceof ObjectNode stats && stats.isEmpty()) {
+                root.remove("stats");
+            }
+            if (root.get("policy") instanceof ObjectNode policy
+                    && policy.get("levels") instanceof ObjectNode levels
+                    && levels.get("0") instanceof ObjectNode level0) {
+                level0.remove("statsUserUplink");
+                level0.remove("statsUserDownlink");
+                level0.remove("statsUserOnline");
             }
 
             root.remove("routing");

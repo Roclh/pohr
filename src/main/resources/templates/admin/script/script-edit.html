@@ -26,6 +26,11 @@
             <textarea id="content" name="content" rows="30" spellcheck="false"
                       class="config-editor" th:text="${content}"></textarea>
         </div>
+        <div class="field">
+            <label for="note" th:text="#{admin.scriptsCatalog.note}">Комментарий к версии</label>
+            <input type="text" id="note" name="note" maxlength="512"
+                   th:placeholder="#{admin.scriptsCatalog.notePlaceholder}">
+        </div>
         <div class="form-actions">
             <button type="submit" th:text="#{user.form.save}">Сохранить</button>
             <a class="link" th:href="@{/admin/scripts/{id}(id=${script.getId()})}"

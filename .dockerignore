@@ -11,3 +11,5 @@ xray
 .env
 *.md
 !README.md
+!scripts.md
+!src/main/resources/mcp/*.md

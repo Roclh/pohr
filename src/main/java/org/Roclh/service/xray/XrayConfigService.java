@@ -56,6 +56,10 @@ public class XrayConfigService {
         return repository.findById(id);
     }
 
+    public Optional<XrayConfig> findByName(String name) {
+        return repository.findByName(name);
+    }
+
     // --- Инициализация --------------------------------------------------------
 
     /** Если активного конфига нет — генерирует дефолтный Reality-конфиг. Требует установленный xray. */

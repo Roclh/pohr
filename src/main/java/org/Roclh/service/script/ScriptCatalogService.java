@@ -117,7 +117,8 @@ public class ScriptCatalogService {
                     .enabled(true)
                     .seeded(fileService.isBundled(name))
                     .build());
-            versionService.registerInitial(script.getId(), hash, size, ScriptVersionSource.SEED);
+            versionService.registerInitial(script.getId(), hash, size, ScriptVersionSource.SEED,
+                    "system", "registered from volume");
             log.info("Registered new script '{}' v1.0 (seeded={})", name, script.isSeeded());
             return;
         }
@@ -126,7 +127,8 @@ public class ScriptCatalogService {
         Optional<ScriptVersion> active = versionService.getActive(script.getId());
 
         if (active.isEmpty()) {
-            versionService.registerInitial(script.getId(), hash, size, ScriptVersionSource.VOLUME_RESCAN);
+            versionService.registerInitial(script.getId(), hash, size, ScriptVersionSource.VOLUME_RESCAN,
+                    "system", "registered from volume");
             log.info("Registered initial version for existing script '{}'", name);
             return;
         }
@@ -143,7 +145,7 @@ public class ScriptCatalogService {
 
         // Содержимое изменилось вне UI — не имеем старого контента для снапшота
         versionService.bumpMinor(script.getId(), hash, size,
-                ScriptVersionSource.VOLUME_RESCAN, null);
+                ScriptVersionSource.VOLUME_RESCAN, null, "system", "changed on disk");
         log.info("Script '{}' changed on disk → bumped to next minor (no snapshot available)", name);
 
         if (!script.isEnabled()) {
@@ -280,6 +282,20 @@ public class ScriptCatalogService {
                                boolean entrypoint,
                                int sortOrder,
                                boolean enabled) {
+        updateMetadata(id, displayName, description, platform, accessLevel,
+                entrypoint, sortOrder, enabled, "system");
+    }
+
+    @Transactional
+    public void updateMetadata(UUID id,
+                               String displayName,
+                               String description,
+                               String platform,
+                               ScriptAccessLevel accessLevel,
+                               boolean entrypoint,
+                               int sortOrder,
+                               boolean enabled,
+                               String actor) {
         Script s = getByIdOrThrow(id);
         s.setDisplayName(displayName);
         s.setDescription(blankToNull(description));
@@ -288,8 +304,9 @@ public class ScriptCatalogService {
         s.setEntrypoint(entrypoint);
         s.setSortOrder(sortOrder);
         s.setEnabled(enabled);
+        s.setUpdatedBy(actor(actor));
         scriptRepo.save(s);
-        log.info("Metadata updated for script '{}'", s.getName());
+        log.info("Metadata updated for script '{}' by {}", s.getName(), actor(actor));
     }
 
     /**
@@ -298,29 +315,73 @@ public class ScriptCatalogService {
      */
     @Transactional
     public void saveContent(UUID id, String newContent) throws IOException {
+        saveContent(id, newContent, "system", null, null, ScriptVersionSource.UI_EDIT);
+    }
+
+    /**
+     * Полная версия сохранения: актор, комментарий и optimistic-lock по хэшу.
+     *
+     * @param expectedHash если задан — активная версия обязана иметь этот хэш,
+     *                     иначе сохранение отклоняется (защита от перезаписи
+     *                     чужой правки).
+     */
+    @Transactional
+    public void saveContent(UUID id,
+                            String newContent,
+                            String actor,
+                            String note,
+                            String expectedHash,
+                            ScriptVersionSource source) throws IOException {
         Script s = getByIdOrThrow(id);
         Path path = Path.of(scriptsHome, s.getName());
         Files.createDirectories(path.getParent());
 
+        Optional<ScriptVersion> active = versionService.getActive(id);
+        if (expectedHash != null && !expectedHash.isBlank()) {
+            String currentHash = active.map(ScriptVersion::getHash).orElse(null);
+            if (currentHash == null || !currentHash.equalsIgnoreCase(expectedHash.trim())) {
+                throw new IllegalStateException(
+                        "Скрипт уже изменён: ожидался hash " + expectedHash
+                                + ", сейчас " + (currentHash == null ? "нет активной версии" : currentHash)
+                                + ". Перечитайте скрипт и повторите правку.");
+            }
+        }
+
         byte[] oldBytes = Files.exists(path) ? Files.readAllBytes(path) : null;
 
-        String normalized = normalizeLineEndings(s.getName(), newContent);
+        // Защита от правки файла в обход UI/MCP: active hash в БД может
+        // совпадать с expectedHash, а на диске уже лежит другое содержимое.
+        if (expectedHash != null && !expectedHash.isBlank() && oldBytes != null) {
+            String diskHash = ScriptVersionService.sha256Hex(oldBytes);
+            if (!diskHash.equalsIgnoreCase(expectedHash.trim())) {
+                throw new IllegalStateException(
+                        "Файл скрипта изменён на диске (hash " + diskHash
+                                + "), перечитайте scripts_read и повторите правку.");
+            }
+        }
+
+        String normalized = normalizeLineEndings(s.getName(), newContent == null ? "" : newContent);
         byte[] newBytes = normalized.getBytes(StandardCharsets.UTF_8);
         String newHash = ScriptVersionService.sha256Hex(newBytes);
 
-        Files.write(path, newBytes);
-
-        Optional<ScriptVersion> active = versionService.getActive(id);
         if (active.isPresent() && active.get().getHash().equals(newHash)) {
             log.debug("Script '{}' content unchanged, skipping version bump", s.getName());
+            if (note != null && !note.isBlank()) {
+                log.info("Script '{}' unchanged; note ignored: {}", s.getName(), note);
+            }
             return;
         }
 
-        versionService.bumpMinor(id, newHash, newBytes.length,
-                ScriptVersionSource.UI_EDIT, oldBytes);
+        Files.write(path, newBytes);
 
+        versionService.bumpMinor(id, newHash, newBytes.length,
+                source == null ? ScriptVersionSource.UI_EDIT : source,
+                oldBytes, actor(actor), note);
+
+        s.setUpdatedBy(actor(actor));
+        scriptRepo.save(s);
         invalidateDependencyCache();
-        log.info("Script '{}' saved via UI, new version registered", s.getName());
+        log.info("Script '{}' saved by {}, new version registered", s.getName(), actor(actor));
     }
 
     /**
@@ -337,6 +398,23 @@ public class ScriptCatalogService {
                                boolean entrypoint,
                                int sortOrder,
                                boolean enabled) throws IOException {
+        return createScript(name, content, displayName, description, platform,
+                accessLevel, entrypoint, sortOrder, enabled, "system",
+                ScriptVersionSource.UI_CREATE);
+    }
+
+    @Transactional
+    public Script createScript(String name,
+                               String content,
+                               String displayName,
+                               String description,
+                               String platform,
+                               ScriptAccessLevel accessLevel,
+                               boolean entrypoint,
+                               int sortOrder,
+                               boolean enabled,
+                               String actor,
+                               ScriptVersionSource source) throws IOException {
         validateNewScriptName(name);
 
         if (content == null) content = "";
@@ -357,14 +435,16 @@ public class ScriptCatalogService {
                 .sortOrder(sortOrder)
                 .enabled(enabled)
                 .seeded(false)
+                .updatedBy(actor(actor))
                 .build());
 
         String hash = ScriptVersionService.sha256Hex(bytes);
         versionService.registerInitial(script.getId(), hash, bytes.length,
-                ScriptVersionSource.UI_CREATE);
+                source == null ? ScriptVersionSource.UI_CREATE : source,
+                actor(actor), "created");
 
         invalidateDependencyCache();
-        log.info("Script '{}' created via UI ({} bytes)", name, bytes.length);
+        log.info("Script '{}' created by {} ({} bytes)", name, actor(actor), bytes.length);
         return script;
     }
 
@@ -420,15 +500,28 @@ public class ScriptCatalogService {
 
     @Transactional
     public void bumpMajor(UUID id) {
+        bumpMajor(id, "system", null, ScriptVersionSource.UI_EDIT);
+    }
+
+    @Transactional
+    public void bumpMajor(UUID id, String actor, String note, ScriptVersionSource source) {
         Script s = getByIdOrThrow(id);
         ScriptVersion active = versionService.getActiveOrThrow(id);
         versionService.bumpMajor(id, active.getHash(), active.getSize(),
-                ScriptVersionSource.UI_EDIT);
-        log.info("Script '{}' bumped to next major version", s.getName());
+                source == null ? ScriptVersionSource.UI_EDIT : source,
+                actor(actor), note);
+        s.setUpdatedBy(actor(actor));
+        scriptRepo.save(s);
+        log.info("Script '{}' bumped to next major version by {}", s.getName(), actor(actor));
     }
 
     @Transactional
     public void rollback(UUID id, UUID targetVersionId) throws IOException {
+        rollback(id, targetVersionId, "system", null);
+    }
+
+    @Transactional
+    public void rollback(UUID id, UUID targetVersionId, String actor, String note) throws IOException {
         Script s = getByIdOrThrow(id);
         ScriptVersion target = versionService.getHistory(id).stream()
                 .filter(v -> v.getId().equals(targetVersionId))
@@ -448,9 +541,12 @@ public class ScriptCatalogService {
 
         Files.write(path, targetContent);
 
-        versionService.rollback(id, targetVersionId, targetHash, targetContent.length, currentContent);
+        versionService.rollback(id, targetVersionId, targetHash, targetContent.length,
+                currentContent, actor(actor), note);
+        s.setUpdatedBy(actor(actor));
+        scriptRepo.save(s);
         invalidateDependencyCache();
-        log.info("Script '{}' rolled back to v{}", s.getName(), target.getVersion());
+        log.info("Script '{}' rolled back to v{} by {}", s.getName(), target.getVersion(), actor(actor));
     }
 
     /**
@@ -459,6 +555,11 @@ public class ScriptCatalogService {
      */
     @Transactional
     public void reseedFromBundled(UUID id) throws IOException {
+        reseedFromBundled(id, "system", ScriptVersionSource.UI_EDIT);
+    }
+
+    @Transactional
+    public void reseedFromBundled(UUID id, String actor, ScriptVersionSource source) throws IOException {
         Script s = getByIdOrThrow(id);
         if (!fileService.isBundled(s.getName())) {
             throw new IllegalArgumentException(
@@ -479,30 +580,56 @@ public class ScriptCatalogService {
         }
 
         versionService.bumpMinor(id, newHash, bundled.length,
-                ScriptVersionSource.UI_EDIT, oldBytes);
+                source == null ? ScriptVersionSource.UI_EDIT : source,
+                oldBytes, actor(actor), "reset to bundled");
 
+        s.setUpdatedBy(actor(actor));
         if (!s.isSeeded()) {
             s.setSeeded(true);
-            scriptRepo.save(s);
         }
+        scriptRepo.save(s);
         invalidateDependencyCache();
         log.info("Script '{}' re-seeded from bundled classpath", s.getName());
     }
 
     @Transactional
     public void delete(UUID id) throws IOException {
+        delete(id, "system");
+    }
+
+    @Transactional
+    public void delete(UUID id, String actor) throws IOException {
         Script s = getByIdOrThrow(id);
         Path path = Path.of(scriptsHome, s.getName());
         Files.deleteIfExists(path);
         versionService.purgeSnapshots(id);
         scriptRepo.delete(s);
         invalidateDependencyCache();
-        log.info("Script '{}' deleted", s.getName());
+        log.info("Script '{}' deleted by {}", s.getName(), actor(actor));
     }
 
     // =====================================================================
     // Helpers
     // =====================================================================
+
+    /** Абсолютный путь файла скрипта в volume. */
+    public Path resolvePath(Script script) {
+        return Path.of(scriptsHome, script.getName());
+    }
+
+    public Path scriptsHomePath() {
+        return Path.of(scriptsHome);
+    }
+
+    /** Разрешено ли расширение (bat/cmd/ps1/sh/txt/json). */
+    public boolean isAllowedFileName(String name) {
+        return name != null && isAllowedExtension(name);
+    }
+
+    /** Нормализует line endings так же, как при сохранении. */
+    public String normalizeForName(String name, String content) {
+        return normalizeLineEndings(name, content == null ? "" : content);
+    }
 
     private boolean isAllowedExtension(String name) {
         int dot = name.lastIndexOf('.');
@@ -532,5 +659,13 @@ public class ScriptCatalogService {
 
     private static String blankToNull(String s) {
         return (s == null || s.isBlank()) ? null : s;
+    }
+
+    private static String actor(String value) {
+        if (value == null || value.isBlank()) {
+            return "system";
+        }
+        String trimmed = value.trim();
+        return trimmed.length() > 64 ? trimmed.substring(0, 64) : trimmed;
     }
 }

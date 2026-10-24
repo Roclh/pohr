@@ -193,6 +193,101 @@
     <p th:if="${sampleCount <= 1}" class="muted"
        th:text="#{admin.monitoring.noData}">Метрики появятся через минуту после старта.</p>
 
+    <!-- ===== Flows / active clients ===== -->
+    <section class="card" th:if="${flowsChart.hasData()}">
+        <h2 th:text="#{admin.monitoring.flows}">Потоки и активные клиенты</h2>
+        <div class="chart-block">
+            <div class="chart-header">
+                <div class="chart-title" th:text="#{admin.monitoring.flowsChart}">TCP-соединения</div>
+                <div class="chart-stats">
+                    <span>max <b th:text="${#numbers.formatDecimal(flowsChart.max(), 1, 0)}">—</b></span>
+                </div>
+            </div>
+            <div class="chart-legend">
+                <span th:each="s : ${flowsChart.series()}" class="chart-legend-item">
+                    <span class="chart-legend-swatch" th:classappend="${s.cssClass()}"></span>
+                    <span th:text="${s.label()}">Series</span>
+                </span>
+            </div>
+            <div class="chart-wrap">
+                <div class="chart-y-axis">
+                    <span th:each="t : ${flowsChart.yTicks()}" th:text="${t}">—</span>
+                </div>
+                <svg viewBox="0 0 600 120" preserveAspectRatio="none" class="chart">
+                    <line x1="0" y1="0"   x2="600" y2="0"   class="chart-grid"/>
+                    <line x1="0" y1="60"  x2="600" y2="60"  class="chart-grid"/>
+                    <line x1="0" y1="120" x2="600" y2="120" class="chart-grid"/>
+                    <path th:each="s : ${flowsChart.series()}"
+                          th:attr="d=${s.path()},class=${s.cssClass()}"/>
+                </svg>
+            </div>
+        </div>
+    </section>
+
+    <!-- ===== Client traffic ===== -->
+    <section class="card">
+        <h2 th:text="#{admin.monitoring.traffic}">Трафик клиентов</h2>
+        <p class="muted" th:text="#{admin.monitoring.traffic.hint}">
+            Счётчики Xray по каждому клиенту, раз в минуту. Данные по всем нодам суммируются.
+        </p>
+
+        <div class="metric-grid" th:if="${trafficSummary != null}">
+            <div class="metric-tile">
+                <div class="metric-label" th:text="#{admin.monitoring.traffic.up}">Отправлено сегодня</div>
+                <div class="metric-value" th:text="${trafficSummary.upToday()}">0 B</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label" th:text="#{admin.monitoring.traffic.down}">Получено сегодня</div>
+                <div class="metric-value" th:text="${trafficSummary.downToday()}">0 B</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label" th:text="#{admin.monitoring.traffic.connections}">Активные соединения</div>
+                <div class="metric-value"
+                     th:text="${trafficSummary.activeConnections() != null ? trafficSummary.activeConnections() : '—'}">—</div>
+                <div class="metric-sub" th:text="#{admin.monitoring.traffic.connections.hint}">TCP к Xray</div>
+            </div>
+            <div class="metric-tile">
+                <div class="metric-label" th:text="#{admin.monitoring.traffic.users}">Клиенты с трафиком</div>
+                <div class="metric-value"
+                     th:text="${trafficSummary.activeUsers() != null ? trafficSummary.activeUsers() : '—'}">—</div>
+                <div class="metric-sub" th:text="#{admin.monitoring.traffic.users.hint}">за последний интервал</div>
+            </div>
+        </div>
+
+        <table class="table" th:if="${!#lists.isEmpty(trafficRows)}">
+            <thead>
+            <tr>
+                <th th:text="#{admin.monitoring.traffic.client}">Клиент</th>
+                <th th:text="#{admin.monitoring.traffic.today}">Сегодня</th>
+                <th th:text="#{admin.monitoring.traffic.week}">7 дней</th>
+                <th th:text="#{admin.monitoring.traffic.lastSeen}">Последняя активность</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="r : ${trafficRows}">
+                <td data-label="Client">
+                    <span th:text="${r.username()}">user</span>
+                    <span class="badge enabled" th:if="${r.active()}"
+                          th:text="#{admin.monitoring.traffic.active}">online</span>
+                </td>
+                <td data-label="Today">
+                    <span th:text="${'↑ ' + r.upToday()}">↑ 0 B</span><br/>
+                    <span th:text="${'↓ ' + r.downToday()}">↓ 0 B</span>
+                </td>
+                <td data-label="7 days">
+                    <span th:text="${'↑ ' + r.upWeek()}">↑ 0 B</span><br/>
+                    <span th:text="${'↓ ' + r.downWeek()}">↓ 0 B</span>
+                </td>
+                <td data-label="Last activity" th:text="${r.lastSeen()}">—</td>
+            </tr>
+            </tbody>
+        </table>
+        <p th:if="${#lists.isEmpty(trafficRows)}" class="muted"
+           th:text="#{admin.monitoring.traffic.empty}">
+            Данных пока нет — статистика появится после первого интервала сбора.
+        </p>
+    </section>
+
     <!-- ===== EU nodes ===== -->
     <section class="card">
         <h2 th:text="#{admin.monitoring.nodes}">EU nodes</h2>

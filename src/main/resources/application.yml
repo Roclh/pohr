@@ -23,6 +23,17 @@ spring:
     enabled: true
 
 pohr:
+  node:
+    id: ${POHR_NODE_ID:local}
+  xray:
+    api-port: ${XRAY_API_PORT:10085}
+  traffic:
+    enabled: ${TRAFFIC_ENABLED:true}
+    interval-ms: ${TRAFFIC_INTERVAL_MS:60000}
+    initial-delay-ms: 25000
+    inbound-port: ${POHR_VPN_PORT:8443}
+    retention-days: 7
+    daily-retention-days: 400
   public-url: ${POHR_PUBLIC_URL:}
   scripts:
     home: ${SCRIPTS_HOME:./scripts}

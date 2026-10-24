@@ -58,6 +58,10 @@ public class Script {
     @Column(name = "seed_version", length = 32)
     private String seedVersion;
 
+    /** Username последнего изменившего (metadata/content). */
+    @Column(name = "updated_by", length = 64)
+    private String updatedBy;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 

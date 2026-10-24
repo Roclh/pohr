@@ -75,9 +75,9 @@ public class AdminScriptController {
     }
 
     @PostMapping("/{id}/reseed")
-    public String reseed(@PathVariable UUID id, RedirectAttributes flash) {
+    public String reseed(@PathVariable UUID id, Authentication auth, RedirectAttributes flash) {
         try {
-            catalog.reseedFromBundled(id);
+            catalog.reseedFromBundled(id, auth.getName(), ScriptVersionSource.UI_EDIT);
             flash.addFlashAttribute("successMessage", "Скрипт сброшен к встроенной версии");
         } catch (Exception e) {
             flash.addFlashAttribute("errorMessage", e.getMessage());
@@ -98,10 +98,11 @@ public class AdminScriptController {
                            @RequestParam(defaultValue = "false") boolean entrypoint,
                            @RequestParam(defaultValue = "1000") int sortOrder,
                            @RequestParam(defaultValue = "false") boolean enabled,
+                           Authentication auth,
                            RedirectAttributes flash) {
         try {
             catalog.updateMetadata(id, displayName, description, platform,
-                    accessLevel, entrypoint, sortOrder, enabled);
+                    accessLevel, entrypoint, sortOrder, enabled, auth.getName());
             flash.addFlashAttribute("successMessage", "Метаданные сохранены");
         } catch (Exception e) {
             flash.addFlashAttribute("errorMessage", e.getMessage());
@@ -135,9 +136,12 @@ public class AdminScriptController {
     @PostMapping("/{id}/content")
     public String saveContent(@PathVariable UUID id,
                               @RequestParam String content,
+                              @RequestParam(required = false) String note,
+                              Authentication auth,
                               RedirectAttributes flash) {
         try {
-            catalog.saveContent(id, content);
+            catalog.saveContent(id, content, auth.getName(), note, null,
+                    ScriptVersionSource.UI_EDIT);
             flash.addFlashAttribute("successMessage", "Содержимое сохранено, версия обновлена");
         } catch (Exception e) {
             flash.addFlashAttribute("errorMessage", e.getMessage());
@@ -150,9 +154,9 @@ public class AdminScriptController {
     // =====================================================================
 
     @PostMapping("/{id}/bump-major")
-    public String bumpMajor(@PathVariable UUID id, RedirectAttributes flash) {
+    public String bumpMajor(@PathVariable UUID id, Authentication auth, RedirectAttributes flash) {
         try {
-            catalog.bumpMajor(id);
+            catalog.bumpMajor(id, auth.getName(), "major bump", ScriptVersionSource.UI_EDIT);
             flash.addFlashAttribute("successMessage", "Мажорная версия поднята");
         } catch (Exception e) {
             flash.addFlashAttribute("errorMessage", e.getMessage());
@@ -163,9 +167,10 @@ public class AdminScriptController {
     @PostMapping("/{id}/rollback")
     public String rollback(@PathVariable UUID id,
                            @RequestParam UUID versionId,
+                           Authentication auth,
                            RedirectAttributes flash) {
         try {
-            catalog.rollback(id, versionId);
+            catalog.rollback(id, versionId, auth.getName(), "rollback");
             flash.addFlashAttribute("successMessage", "Откат выполнен, создана новая версия");
         } catch (Exception e) {
             flash.addFlashAttribute("errorMessage", e.getMessage());
@@ -197,11 +202,13 @@ public class AdminScriptController {
                          @RequestParam(defaultValue = "false") boolean entrypoint,
                          @RequestParam(defaultValue = "1000") int sortOrder,
                          @RequestParam(defaultValue = "false") boolean enabled,
+                         Authentication auth,
                          RedirectAttributes flash,
                          Model model) {
         try {
             Script s = catalog.createScript(name, content, displayName, description,
-                    platform, accessLevel, entrypoint, sortOrder, enabled);
+                    platform, accessLevel, entrypoint, sortOrder, enabled,
+                    auth.getName(), ScriptVersionSource.UI_CREATE);
             flash.addFlashAttribute("successMessage", "Скрипт создан");
             return "redirect:/admin/scripts/" + s.getId();
         } catch (IllegalArgumentException e) {
@@ -231,9 +238,9 @@ public class AdminScriptController {
     // =====================================================================
 
     @PostMapping("/{id}/delete")
-    public String delete(@PathVariable UUID id, RedirectAttributes flash) {
+    public String delete(@PathVariable UUID id, Authentication auth, RedirectAttributes flash) {
         try {
-            catalog.delete(id);
+            catalog.delete(id, auth.getName());
             flash.addFlashAttribute("successMessage", "Скрипт удалён");
             return "redirect:/admin/scripts";
         } catch (Exception e) {

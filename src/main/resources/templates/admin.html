@@ -77,6 +77,14 @@
             <span class="admin-card-arrow">↗</span>
         </a>
 
+        <a class="admin-card" th:href="@{/admin/mcp}">
+            <h3 th:text="#{admin.mcp.title}">Добавить MCP в DeepSeek Harness</h3>
+            <p class="admin-card-desc" th:text="#{admin.mcp.text}">
+                Подключить агента DSH к редактированию скриптов на сервере.
+            </p>
+            <span class="admin-card-arrow">↗</span>
+        </a>
+
         <a class="admin-card" th:href="@{/admin/client-configs}">
             <h3 th:text="#{admin.clientConfigs.title}">Client configs</h3>
             <p class="admin-card-desc" th:text="#{admin.clientConfigs.text}">

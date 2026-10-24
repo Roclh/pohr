@@ -36,6 +36,7 @@ public class NativeHints {
             hints.resources().registerPattern("db/changelog/**");
             hints.resources().registerPattern("i18n/messages*");
             hints.resources().registerPattern("scripts/**");
+            hints.resources().registerPattern("mcp/**");
             hints.resources().registerPattern("templates/**");       // ← NEW
             hints.resources().registerPattern("static/**");          // ← NEW
             String[] thymeleafExpressionClasses = {
@@ -122,6 +123,12 @@ public class NativeHints {
             hints.reflection().registerType(
                     org.Roclh.model.dto.MetricsSnapshot.class,
                     MemberCategory.values());
+            hints.reflection().registerType(
+                    org.Roclh.model.dto.ClientTrafficRow.class,
+                    MemberCategory.values());
+            hints.reflection().registerType(
+                    org.Roclh.model.dto.TrafficSummary.class,
+                    MemberCategory.values());
             hints.reflection().registerType(org.Roclh.model.dto.telegram.TelegramProxyConfigForm.class, MemberCategory.values());
             hints.reflection().registerType(org.Roclh.model.dto.telegram.TelegramProxyConfigDto.class, MemberCategory.values());
             hints.reflection().registerType(org.Roclh.model.dto.telegram.TelegramProxyUserForm.class, MemberCategory.values());
@@ -152,6 +159,12 @@ public class NativeHints {
                     MemberCategory.values());
             hints.reflection().registerType(
                     org.Roclh.model.script.ScriptVersion.class,
+                    MemberCategory.values());
+            hints.reflection().registerType(
+                    org.Roclh.model.mcp.McpToken.class,
+                    MemberCategory.values());
+            hints.reflection().registerType(
+                    org.Roclh.model.dto.mcp.McpTokenDto.class,
                     MemberCategory.values());
             hints.reflection().registerType(
                     org.Roclh.service.script.ScriptSyncService.SyncRequest.class,

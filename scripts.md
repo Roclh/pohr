@@ -1,132 +1,39 @@
+# Pohr: написание клиентских скриптов
 
-## 1. Философия
-
-- **Скрипты — это активы системы.** Они версионируются, каталогизируются, отдаются по единому API, отслеживаются.
-- **Версия — это метаданные, а не код.** Внутри файла нет `@version`. Версия живёт в БД и доставляется клиенту отдельно.
-- **Всё делается через UI.** Админ взаимодействует с системой через UI. Файловая система — не интерфейс для пользователя, а хранилище.
-- **Никаких «умных» автоматик без явного контроля.** Мажор бампается вручную. Rename — вручную. Seed-обновления не перезатирают правки.
-- **Клиент не анализирует содержимое скриптов.** Он только передаёт то, что получил от сервера (в заголовках, в аргументах, в placeholder-подстановках).
+Этот документ описывает контракт между сервером Pohr и клиентскими скриптами, инструменты, доступные скрипту, и соглашения. Следуй ему буквально. Если правило противоречит «здравому смыслу» — правило важнее.
 
 ---
 
-## 2. Каталог скриптов
+## 1. Что такое скрипты Pohr
 
-### 2.1 Реестр
+Скрипты — управляемые из UI артефакты, которые пользователь скачивает и запускает на своей машине, чтобы настроить VPN-клиент под подписку Pohr. Скрипты:
 
-Все скрипты регистрируются в БД по имени файла. Регистрация происходит при старте приложения (`ensureRegistered`) и при сохранении через UI.
+- **Версионируются на сервере** (в БД, не в файле).
+- **Отдаются через единый API** (`/sub/{token}/scripts/{name}/raw`).
+- **Рендерятся на лету** — сервер подставляет плейсхолдеры (`{{TOKEN}}`, `{{SCRIPTS_BASE_URL}}`, `{{__VERSION__}}`).
+- **Отчитываются серверу** — после применения скрипт отправляет `sync` (что у него стоит) и при ошибке `error-report`.
 
-**Поля `scripts`:**
-- `name` — имя файла (PK), напр. `v2rayn-setup.ps1`
-- `display_name` — человекочитаемое
-- `description` — что делает
-- `platform` — `windows` | `linux` | `macos` | `any`
-- `access_level` — `PUBLIC` (клиент может скачать) | `ADMIN` (только админ)
-- `is_entrypoint` — точка входа. Флаг ставится **вручную** админом. Если нет — не считаем.
-- `sort_order`, `enabled`, `created_at`, `updated_at`
-- `is_seeded`, `seed_version` — для отслеживания «этот файл мы сеем из classpath, а не админ создал»
-
-### 2.2 Регистрация из ФС
-
-При старте сканируется `SCRIPTS_HOME` и `resources/scripts/`. Для каждого файла:
-- Если файла нет в БД → регистрация с версией `1.0`, `source = 'volume-rescan'` (или `'seed'`, если из classpath).
-- Если файл есть в БД и хэш совпадает → no-op.
-- Если файл есть в БД, но хэш не совпадает → **новый bump**, `source = 'volume-rescan'`.
-- Если файл есть в БД, но нет в ФС → `enabled = false`, не удаляем запись.
-
-### 2.3 Seed
-
-Classpath-скрипты — бандл. При первом старте копируются в volume. Если файл уже есть в volume — **не перезаписывается**. `is_seeded = true`, `seed_version = 1.0`.
-
-Если при обновлении Pohr classpath-версия изменилась, а в volume старая — **автоматически не перезаписываем**. Показываем в `/admin/scripts` бейдж «seed устарел» и кнопку «Re-seed».
-
-### 2.4 Rename
-
-Только через UI. Файловая система не используется для переименований. При переименовании в UI версия и история сохраняются.
+Типовой сценарий: пользователь качает `v2rayn-setup.bat`, тот скачивает `v2rayn-setup.ps1`, тот — `pohr-utils.ps1`, применяет настройки к v2rayN, отправляет `sync`. В админке видно, кто на какой версии сидит.
 
 ---
 
-## 3. Версионирование
+## 2. Что сервер даёт скрипту
 
-### 3.1 Формат
+### 2.1 Endpoints
 
-`MAJOR.MINOR`, оба целые числа. `1.0`, `1.1`, `2.0`, `1.17`. Арифметический инкремент (1.9 → 1.10, не 1.10 «меньше 1.9»).
+Все URL строятся относительно `{{SCRIPTS_BASE_URL}}` = `{BASE_URL}/sub/{TOKEN}/scripts`.
 
-### 3.2 Правила bump
+| Метод | Путь | Назначение |
+|---|---|---|
+| `GET` | `/{name}/raw` | Скачать файл скрипта |
+| `GET` | `/{name}/meta` | JSON с метаданными (версия, хэш, size, deps) |
+| `GET` | `/updates` | Доступные обновления для пользователя |
+| `POST` | `/sync` | Отчёт о применённых версиях |
+| `POST` | `/error-report` | Отчёт об ошибке |
 
-- **Minor: автоматически.** Любое изменение содержимого файла — инкремент минорной. Админ не управляет минорной.
-- **Major: вручную.** Админ жмёт «Bump major» — минорная сбрасывается в 0.
-- **При первом seed** — `1.0`.
-- **При rollback** — bump минорной (файл изменился → новая версия), `restore_of` ссылается на исходную версию.
-- **При появлении нового файла в volume** — `1.0`.
+**Важно:** `/sync` и `/error-report` — обычные POST'ы, без CSRF, без cookies. Аутентификация — токен в URL. Скрипт может их вызывать напрямую.
 
-### 3.3 Где хранится версия
-
-**Только в БД.** В файлах — нет. Доставка клиенту:
-- HTTP-заголовки (`X-Pohr-Script-Version`).
-- Placeholder `{{__VERSION__}}` в теле файла, подставляется сервером при отдаче.
-
-### 3.4 История версий
-
-Каждая версия — запись в `script_versions`:
-- `id`, `script_id`, `version`, `hash`, `size`, `created_at`, `invalidated_at`
-- `snapshot_path` — путь к `.history/{name}.{version}.{timestamp}.bak`
-- `source` — `seed` | `ui-edit` | `volume-rescan` | `rollback`
-- `restore_of` — FK на `script_versions.id` (если это rollback)
-
-**Ротация файлов в `.history/`:**
-- Последние 5 версий.
-- Плюс последняя версия каждого предыдущего мажора.
-- Объединение без дубликатов.
-
-**В БД:** строки не удаляются, только помечаются `invalidated_at`. Это нужно для отображения истории и для rollback.
-
-### 3.5 Rollback
-
-Rollback — всегда на **конкретную версию конкретного скрипта**. Никаких каскадов.
-1. Копируем `.history/{name}.{version}.bak` → рабочий файл.
-2. Bump минорной (стандартное правило).
-3. Записываем `restore_of`.
-4. Все клиенты при следующем sync увидят обновление.
-
----
-
-## 4. Placeholder `{{__VERSION__}}`
-
-### 4.1 Назначение
-
-Позволяет скрипту «знать свою версию» без версии в исходнике. В файле на диске стоит `{{__VERSION__}}`. При отдаче сервер заменяет его на актуальную версию из БД.
-
-### 4.2 Инжект
-
-- **При seed'е** — сервер гарантирует, что placeholder есть в файле.
-- **При UI-edit** — если placeholder в файле потерялся, UI предупреждает: «Placeholder {{__VERSION__}} не найден, версия не будет подставлена».
-- **В utils** — `$script:PohrUtilsVersion = "{{__VERSION__}}"`, сервер подставит актуальное значение.
-
-### 4.3 Fallback
-
-Если placeholder в файле нет — версия не подставляется в тело, но:
-- HTTP-заголовок `X-Pohr-Script-Version` всё равно уходит.
-- Клиент (`.bat`/`.ps1`) может прочитать версию из заголовка.
-- Если клиент вообще не смог определить свою версию — отправляет `unknown`, сервер подставляет последнюю скачанную им версию из `script_downloads`.
-
----
-
-## 5. Доставка
-
-### 5.1 Эндпоинты
-
-```
-GET  /sub/{token}/scripts                    -- каталог (admin-only, HTML)
-GET  /sub/{token}/scripts/{name}             -- preview (HTML, безопасно)
-GET  /sub/{token}/scripts/{name}/raw         -- скачивание (файл)
-GET  /sub/{token}/scripts/{name}/meta        -- метаданные (JSON)
-POST /sub/{token}/scripts/sync               -- отчёт о версиях
-POST /sub/{token}/scripts/error-report       -- отчёт об ошибке
-```
-
-**Инверсия:** `/scripts/{name}` — preview, `/scripts/{name}/raw` — файл. Ручной ввод URL не приводит к случайному скачиванию.
-
-### 5.2 Заголовки `/raw`
+### 2.2 Заголовки на `/raw`
 
 ```
 X-Pohr-Script-Name:    v2rayn-setup.ps1
@@ -135,340 +42,565 @@ X-Pohr-Script-Hash:    sha256:abc123...
 X-Pohr-Rendered-At:    2026-10-07T15:00:00Z
 ```
 
-### 5.3 Плейсхолдеры в шаблоне
+**Правило:** если скрипт скачивает другой скрипт, он **обязан** прочитать `X-Pohr-Script-Version` из заголовка и запомнить версию для `sync`.
 
-Сервер при отдаче резолвит:
-- `{{BASE_URL}}` — базовый URL
-- `{{TOKEN}}` — токен подписки
-- `{{SUBSCRIPTION_URL}}` — `{BASE_URL}/sub/{TOKEN}`
-- `{{RULES_URL}}` — `{BASE_URL}/sub/{TOKEN}/rules.json`
-- `{{SCRIPTS_BASE_URL}}` — `{BASE_URL}/sub/{TOKEN}/scripts`
-- `{{__VERSION__}}` — версия отдаваемого скрипта
-- `{{PS1_URL}}`, `{{UTILS_URL}}` — BC-алиасы на новые URL
+### 2.3 Плейсхолдеры в теле
 
-### 5.4 Логирование скачиваний
+Сервер заменяет плейсхолдеры в содержимом **перед отдачей**:
 
-Каждое скачивание `/raw` логируется в `script_downloads`:
-- `user_id`, `script_name`, `version`, `downloaded_at`, `client_ip`, `user_agent`
+| Плейсхолдер | Значение |
+|---|---|
+| `{{BASE_URL}}` | `https://pohr.example.com` |
+| `{{TOKEN}}` | токен подписки |
+| `{{SUBSCRIPTION_URL}}` | `{{BASE_URL}}/sub/{{TOKEN}}` |
+| `{{RULES_URL}}` | `{{BASE_URL}}/sub/{{TOKEN}}/rules.json` |
+| `{{SCRIPTS_BASE_URL}}` | `{{BASE_URL}}/sub/{{TOKEN}}/scripts` |
+| `{{__VERSION__}}` | версия этого скрипта |
+| `{{PS1_URL}}`, `{{UTILS_URL}}` | BC-алиасы на конкретные скрипты |
 
-Нужно для fallback'а (когда клиент не смог определить свою версию) и для аналитики.
+**Правило:** URL других скриптов формируй через `{{SCRIPTS_BASE_URL}}`, а не через `{{PS1_URL}}`/`{{UTILS_URL}}`. Алиасы — только для обратной совместимости.
 
-Ротация: 1000 записей на пользователя или 2 недели.
+**Правило:** свою версию всегда сохраняй в переменную из `{{__VERSION__}}`. Если плейсхолдера в файле нет — сервер подставит пустоту, и версия будет `unknown`.
 
----
+### 2.4 Pohr Utils API
 
-## 6. Зависимости
+`pohr-utils.ps1` — стандартная библиотека. Скачивается первым шагом, dot-source'ится, даёт функции:
 
-### 6.1 Детект
+**Логирование:**
+- `Write-PohrInfo "msg"` — голубое сообщение + в лог-файл
+- `Write-PohrOk "msg"` — зелёное
+- `Write-PohrWarn "msg"` — жёлтое
+- `Write-PohrError "msg"` — красное
+- `Write-PohrDebug "msg"` — серое
 
-**Не хранятся в БД.** Вычисляются на лету при запросе.
-- Регулярка по содержимому: ищутся упоминания имён файлов из реестра скриптов.
-- Ссылки вида `/scripts/{name}/raw`, `/scripts/{name}`, а также резолвленные `{{UTILS_URL}}` и т.п.
-- Ложные срабатывания допустимы (упоминание в комментарии).
-- Циклы игнорируются при обходе (BFS с посещёнными).
+**HTTP:**
+- `Invoke-PohrHttp -Uri $url -Method GET|POST -Body $json -Headers $h -MaxAttempts 3` — с retry и экспоненциальным backoff.
 
-### 6.2 Кэш
+**Серверное API:**
+- `Send-PohrSync -BaseUrl $base -Token $token -RootName $name -Versions $map` — отправить sync.
+- `Send-PohrErrorReport -BaseUrl $base -Token $token -RootName $name -RootVersion $v -Stage $stage -Report $text` — отправить отчёт об ошибке.
+- `Get-PohrScriptInfo -BaseUrl $base -Token $token -ScriptName $name` — JSON с метаданными скрипта.
 
-In-memory кэш `Map<scriptName, Set<depName>>`, инвалидируется при:
-- Любом bump версии.
-- Изменении содержимого.
-- Регистрации нового скрипта.
-- Удалении / disable скрипта.
+**JSON:**
+- `Read-PohrJson $path` — прочитать JSON, с валидацией.
+- `Write-PohrJson -Object $obj -Path $path` — атомарная запись (tmp + move).
 
-Граф маленький (4–5 ветвей), пересчёт быстрый.
+**Транзакции:**
+- `Start-PohrTransaction -Name $n -BackupPath $p` — перед изменением файлов.
+- `Complete-PohrTransaction` — после успеха.
+- `Get-PohrPendingTransaction` — при старте, для recovery.
 
-### 6.3 Использование
+**Бэкапы:**
+- `New-PohrPristineBackup -FilePath $p -Tag "pohr"` — один раз, никогда не перезаписывается.
+- `New-PohrTimestampedBackup -FilePath $p -Tag "pohr"` — с ротацией (5 последних).
 
-- **Update-check** на `/home`: для entrypoint считаем транзитивные зависимости, сравниваем с версиями пользователя.
-- **Диагностика** в `/admin/scripts/{name}`: показывает, кто зависит от этого скрипта.
+**UI:**
+- `Read-PohrConfirm "msg" -Default $true` — `[Y/n]`.
+- `Select-PohrFolder "description"` — FolderBrowserDialog.
 
-### 6.4 Никакой пропагации версий
+**Утилиты:**
+- `Get-PohrFileHash $path` — sha256 hex.
 
-Изменение зависимости **не** bump'ает родителя. Родитель обновляется только когда меняется его собственный файл.
-
----
-
-## 7. Update-check
-
-### 7.1 Логика
-
-На `/home` для каждого entrypoint:
-1. Считаем транзитивный набор зависимостей (`A → {B, C}`, транзитивно).
-2. Для каждой зависимости сравниваем серверную версию с версией пользователя (из `user_script_versions`).
-3. Если расхождение:
-    - **Major** разница (`1.x → 2.x`) → **яркое** уведомление.
-    - **Minor** разница (`1.5 → 1.6`) → **серый** бейдж, без всплывающих окон.
-4. Если всё совпадает — ничего не показываем.
-
-### 7.2 Отображение
-
-- **Серый бейдж:** рядом с панелью на `/home`, текст вида `1.5 → 1.6`. Никаких модалок.
-- **Яркое уведомление:** заметный бейдж (красный/оранжевый), опционально — разовая модалка при заходе. Пользователь может отложить.
-
-### 7.3 Мажорность
-
-Определяется по **версии зависимости**, не по корню. Если `utils.ps1` ушёл с 1.4 на 2.0 — яркое. Если `v2rayn-setup.ps1` ушёл с 1.5 на 1.6 — серое.
+**Правило:** не изобретай HTTP-запросы руками, используй `Invoke-PohrHttp`. Не пиши JSON через `Set-Content`, используй `Write-PohrJson`.
 
 ---
 
-## 8. Sync (отчёт о версиях)
+## 3. Что скрипт должен дать серверу
 
-### 8.1 Payload
+### 3.1 Sync — после успешного применения
 
-```json
-{
-  "rootScript": "v2rayn-setup.bat",
-  "versions": {
-    "v2rayn-setup.bat": "1.5",
-    "v2rayn-setup.ps1": "2.1",
-    "pohr-utils.ps1":   "1.3"
-  },
-  "reportedAt": "2026-10-07T15:00:00Z"
+```powershell
+$versions = @{
+    "v2rayn-setup.bat" = $RootVersion       # пришёл аргументом из .bat
+    "v2rayn-setup.ps1" = "{{__VERSION__}}"  # подставлен сервером
+    "pohr-utils.ps1"   = $UtilsVersion      # прочитан из заголовка при скачивании
+}
+Send-PohrSync -BaseUrl "{{BASE_URL}}" -Token "{{TOKEN}}" `
+              -RootName "v2rayn-setup.ps1" -Versions $versions
+```
+
+**Правило:** sync отправляется **всегда** в конце успешного выполнения. Даже если версия не изменилась — сервер сам дедуплицирует.
+
+**Правило:** `RootName` — имя **entrypoint-скрипта** (того, который пользователь запустил). Даже если sync делает `.ps1`, `RootName` = `v2rayn-setup.bat`.
+
+### 3.2 Error report — при ошибке
+
+```powershell
+try {
+    # ...работа...
+} catch {
+    $stage = "patch-config"
+    $report = @"
+Exception: $($_.Exception.GetType().FullName)
+Message:   $($_.Exception.Message)
+Stack:     $($_.ScriptStackTrace)
+Stage:     $stage
+OS:        $([System.Environment]::OSVersion)
+PS:        $($PSVersionTable.PSVersion)
+"@
+    if (Read-PohrConfirm "Произошла ошибка. Отправить отчёт разработчику?" -Default $true) {
+        Send-PohrErrorReport -BaseUrl "{{BASE_URL}}" -Token "{{TOKEN}}" `
+                             -RootName "v2rayn-setup.bat" -RootVersion $RootVersion `
+                             -Stage $stage -Report $report
+    }
+    exit 1
 }
 ```
 
-### 8.2 Обработка
+**Правило:** отчёт собирается **локально** и отправляется только с согласия пользователя (default Y).
 
-1. Проверяем, что `rootScript` — entrypoint.
-2. Upsert в `user_script_versions` по `(user_id, script_name)`.
-3. Append в `script_version_reports`, **только если версия изменилась** с прошлой записи.
-4. Ответ:
-```json
-{
-  "latest": {
-    "v2rayn-setup.bat": "1.5",
-    "v2rayn-setup.ps1": "2.2",
-    "pohr-utils.ps1":   "1.4"
-  },
-  "updatesAvailable": ["v2rayn-setup.ps1", "pohr-utils.ps1"]
+**Правило:** `stage` — короткий идентификатор шага (`load-utils`, `find-client`, `patch-config`, `restart-client`, `ps1-crashed`). Используется для группировки отчётов в админке.
+
+**Правило:** сам отчёт не должен содержать персональных данных (пути к домашней папке — ок, username — нет). Если в отчёт попадёт что-то чувствительное, обрезай.
+
+---
+
+## 4. Обязательный каркас
+
+### 4.1 `.bat` (Windows launcher)
+
+Назначение: скачать `.ps1`, запустить, поймать exit code, отправить минимальный error-report при жёстком крахе.
+
+```bat
+@echo off
+chcp 866 >nul
+setlocal
+title Pohr - Setup
+
+set "SCRIPT_NAME=v2rayn-setup.bat"
+set "SCRIPT_VERSION={{__VERSION__}}"
+
+set "PS1_URL={{SCRIPTS_BASE_URL}}/v2rayn-setup.ps1/raw"
+set "TEMP_PS1=%TEMP%\pohr-v2rayn-setup.ps1"
+
+echo Скачиваю установщик...
+powershell -NoProfile -ExecutionPolicy Bypass -Command ^
+  "$r = Invoke-WebRequest -Uri '%PS1_URL%' -OutFile '%TEMP_PS1%' -UseBasicParsing -PassThru; $r.Headers['X-Pohr-Script-Version'] | Out-File '%TEMP_PS1%.ver' -Encoding ASCII; exit 0"
+
+if errorlevel 1 (
+    echo ОШИБКА: не удалось скачать %PS1_URL%
+    exit /b 1
+)
+
+set /p PS1_VERSION=<"%TEMP_PS1%.ver"
+
+powershell -NoProfile -ExecutionPolicy Bypass -File "%TEMP_PS1%" ^
+  -RootName "%SCRIPT_NAME%" -RootVersion "%SCRIPT_VERSION%" -Ps1Version "%PS1_VERSION%"
+set "EXITCODE=%errorlevel%"
+
+del "%TEMP_PS1%" 2>nul
+del "%TEMP_PS1%.ver" 2>nul
+
+exit /b %EXITCODE%
+```
+
+**Правило:** `.bat` **не анализирует содержимое** — он только загрузчик. Вся логика в `.ps1`.
+
+**Правило:** `.bat` передаёт в `.ps1` три аргумента: `-RootName`, `-RootVersion`, `-Ps1Version`.
+
+**Правило:** если `.ps1` вернул `!= 0`, `.bat` просто делает `exit /b %EXITCODE%`. Расширенный error-report уходит из `.ps1`. Жёсткий краш `.ps1` (без своего `try/catch`) ловится на сервере как «нет sync за N минут», это осознанный компромисс.
+
+### 4.2 `.ps1` (Windows worker)
+
+Назначение: скачать utils, применить изменения, отправить sync или error-report.
+
+```powershell
+# @pohr-entrypoint v2rayn-setup.bat
+
+param(
+    [Parameter(Mandatory)] [string] $RootName,
+    [Parameter(Mandatory)] [string] $RootVersion,
+    [string] $Ps1Version = "unknown"
+)
+
+$ErrorActionPreference = "Stop"
+$PohrScriptName    = "v2rayn-setup.ps1"
+$PohrScriptVersion = "{{__VERSION__}}"
+$BaseUrl           = "{{BASE_URL}}"
+$Token             = "{{TOKEN}}"
+
+$Stage = "load-utils"
+$UtilsVersion = "unknown"
+
+try {
+    # --- 1. Utils ---
+    $utilsUrl = "{{SCRIPTS_BASE_URL}}/pohr-utils.ps1/raw"
+    $utilsPath = Join-Path $env:TEMP "pohr-utils.ps1"
+    $resp = Invoke-WebRequest -Uri $utilsUrl -OutFile $utilsPath -UseBasicParsing -PassThru
+    $UtilsVersion = $resp.Headers["X-Pohr-Script-Version"]
+    . $utilsPath
+
+    Write-PohrInfo "Утилиты v$UtilsVersion загружены"
+
+    # --- Recovery ---
+    $pending = Get-PohrPendingTransaction
+    if ($pending) { ... }
+
+    # --- 2. Доменная логика ---
+    $Stage = "find-client"
+    # ... поиск v2rayN ...
+
+    $Stage = "patch-config"
+    # ... патч guiNConfig.json ...
+
+    # --- 3. Sync ---
+    $Stage = "sync"
+    $versions = @{
+        $RootName        = $RootVersion
+        $PohrScriptName  = $PohrScriptVersion
+        "pohr-utils.ps1" = $UtilsVersion
+    }
+    Send-PohrSync -BaseUrl $BaseUrl -Token $Token -RootName $RootName -Versions $versions
+
+    exit 0
+} catch {
+    $report = @"
+Script:   $PohrScriptName v$PohrScriptVersion
+Root:     $RootName v$RootVersion
+Stage:    $Stage
+Exception: $($_.Exception.GetType().FullName)
+Message:   $($_.Exception.Message)
+Stack:     $($_.ScriptStackTrace)
+OS:        $([System.Environment]::OSVersion)
+PS:        $($PSVersionTable.PSVersion)
+"@
+    Write-PohrError "Ошибка на шаге $Stage"
+
+    if (Read-PohrConfirm "Произошла ошибка. Отправить отчёт разработчику?" -Default $true) {
+        try {
+            Send-PohrErrorReport -BaseUrl $BaseUrl -Token $Token `
+                                 -RootName $RootName -RootVersion $RootVersion `
+                                 -Stage $Stage -Report $report
+        } catch {}
+    }
+    exit 1
 }
 ```
 
-### 8.3 Когда клиент отправляет
+**Правило:** `$ErrorActionPreference = "Stop"` в начале. Любая ошибка — исключение.
 
-- После каждого успешного применения скрипта.
-- Даже если версии не изменились — сервер сам дедуплицирует.
+**Правило:** оберни всю логику в `try/catch`. В `catch` — отправка error-report.
 
-### 8.4 Как клиент узнаёт версии
+**Правило:** `$Stage` меняется перед каждым логическим шагом. Это единственный способ узнать из отчёта, где упало.
 
-**`.bat` (скачан пользователем):**
-- Своя версия — из placeholder-подстановки (`set "SCRIPT_VERSION=1.5"`).
-- Если placeholder отсутствовал → `unknown`.
+**Правило:** `RootName`/`RootVersion` приходят аргументами от `.bat`. Своя версия — из `{{__VERSION__}}`. Версия utils — из заголовка.
 
-**`.bat` передаёт `.ps1`:**
+**Правило:** sync в конце, exit 0. Если что-то упало — sync не отправляется, только error-report.
+
+### 4.3 `.sh` (Linux)
+
+Аналогично `.ps1`, но на bash. Используй `set -euo pipefail`, `curl -fsSL`, `jq`. Получай версию через `-D -` и `grep`:
+
+```bash
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_VERSION="{{__VERSION__}}"
+BASE_URL="{{BASE_URL}}"
+TOKEN="{{TOKEN}}"
+
+stage="init"
+
+send_error() {
+    local report="$1"
+    curl -fsSL -X POST "$BASE_URL/sub/$TOKEN/scripts/error-report" \
+        -H "Content-Type: application/json" \
+        -d "$(jq -n --arg s "$stage" --arg r "$report" \
+              '{rootScript:"install.sh",rootVersion:"'"$SCRIPT_VERSION"'",stage:$s,reportText:$r}')" \
+        || true
+}
+
+trap 'send_error "stage=$stage"' ERR
+
+stage="download"
+curl -fsSL "$BASE_URL/sub/$TOKEN/scripts/helper.sh/raw" -o /tmp/helper.sh
 ```
--File "%TEMP_PS1%" -RootName "v2rayn-setup.bat" -RootVersion "%SCRIPT_VERSION%"
-```
 
-**`.bat` качает `.ps1`:**
-- Читает `X-Pohr-Script-Version` из заголовка.
-- Передаёт в `.ps1`: `-Ps1Version "2.1"`.
+**Правило:** `trap ... ERR` в начале. `send_error` не должен сам падать (`|| true`).
 
-**`.ps1` качает utils:**
-- Читает версию из заголовка.
-- Собирает итоговый map.
-
-**`.ps1` отправляет sync.**
-
-### 8.5 Что если `.ps1` крашнулся
-
-`.ps1` не отправил sync. `.bat` ловит `%ERRORLEVEL% != 0` и отправляет `/error-report` с минимальными данными.
+**Правило:** если скачиваешь другой скрипт — читай `X-Pohr-Script-Version` через `curl -D -`.
 
 ---
 
-## 9. Error reports
+## 5. Соглашения
 
-### 9.1 Payload
+### 5.1 Кодировки и line endings
 
-```json
-{
-  "rootScript": "v2rayn-setup.bat",
-  "rootVersion": "1.5",
-  "stage": "patch-config",
-  "exception": "System.ArgumentException: ...",
-  "stackTrace": "...",
-  "os": "Windows 10.0.19045",
-  "psVersion": "5.1.19041.1",
-  "v2raynVersion": "7.2.4",
-  "configPath": "C:\\v2ray\\v2rayn\\guiNConfig.json",
-  "logTail": "...последние 30 строк pohr.log...",
-  "extra": "{}"
+| Файл | Кодировка при отдаче | Line endings |
+|---|---|---|
+| `.bat`, `.cmd` | CP866 | CRLF |
+| `.ps1` | UTF-8 с BOM | CRLF |
+| `.sh` | UTF-8 без BOM | LF |
+| `.json` | UTF-8 | как есть |
+
+**Правило:** сервер сам нормализует. Если пишешь `.ps1` и хочешь передать кириллицу в `Write-Host` — она попадёт корректно благодаря BOM.
+
+### 5.2 Именование
+
+- Файлы: `{platform}-{purpose}.{ext}` — `v2rayn-setup.ps1`, `happ-install.sh`.
+- Переменные в `.ps1`: `$PohrScriptName`, `$PohrScriptVersion`, `$BaseUrl`, `$Token`, `$Stage`. Стиль — PascalCase для собственных, camelCase для локальных.
+- Переменные в `.sh`: `SCREAMING_SNAKE_CASE` для констант, `snake_case` для остальных.
+
+### 5.3 Логирование
+
+**Правило:** логируй через `Write-Pohr*`, не через `Write-Host` напрямую. `Write-Pohr*` пишет и в консоль, и в `%LOCALAPPDATA%\Pohr\pohr.log`.
+
+**Правило:** каждое логическое действие — одна строка лога с префиксом. Пример:
+```
+[INFO] Утилиты v1.3 загружены
+[INFO] Найдено v2rayN: C:\v2ray\v2rayn
+[INFO] Фрагментация включена (v2rayN 7.x)
+[OK]   Подписка Pohr добавлена
+```
+
+### 5.4 Идемпотентность
+
+**Правило:** скрипт должен уметь запускаться повторно без побочных эффектов. Любое изменение файла — сначала проверить, что оно нужно.
+
+Пример — не «добавить подписку», а «удалить старую подписку Pohr и добавить новую»:
+```powershell
+$json.subItem = @($json.subItem | Where-Object { $_.remarks -ne "Pohr" })
+$json.subItem += [PSCustomObject]@{ remarks = "Pohr"; ... }
+```
+
+Пример — не «включить фрагментацию», а «если фрагментация уже включена с теми же параметрами — не трогать»:
+```powershell
+if ($json.CoreBasicItem.EnableFragment -eq $true `
+    -and $json.Fragment4RayItem.Packets -eq "tlshello") {
+    Write-PohrDebug "Фрагментация уже настроена"
+} else {
+    # ... настройка ...
 }
 ```
 
-### 9.2 Согласие пользователя
+### 5.5 Транзакции при изменении файлов
 
-При ошибке `.ps1` показывает пользователю:
-> «Произошла ошибка. Отправить отчёт разработчику для диагностики? Включит: версию ОС, PowerShell, v2rayN, текст ошибки, последние строки лога. Персональные данные не отправляются.»
-> `[Y/n]`, default `Y`.
+**Правило:** если скрипт меняет файл, который не контролирует (`.json`, `.conf`, реестр), используй транзакцию:
 
-Если пользователь отказался — ошибка всё равно показывается, `exit 1`, отчёт не отправляется.
+```powershell
+$pristine = New-PohrPristineBackup -FilePath $configPath -Tag "pohr"
+$backup   = New-PohrTimestampedBackup -FilePath $configPath -Tag "pohr"
+Start-PohrTransaction -Name "patch-$PohrScriptName" -BackupPath $backup
 
-### 9.3 Сбор на стороне `.ps1`
-
-Если упало — собираем максимум, что можем:
-- `$PSVersionTable.PSVersion`
-- `[System.Environment]::OSVersion`
-- Версия v2rayN (из реестра или exe)
-- Путь до `guiNConfig.json`, размер
-- Последние 30 строк `%LOCALAPPDATA%\Pohr\pohr.log`
-- Exception type, message, stack trace
-- Текущий шаг выполнения
-
-### 9.4 Fallback через `.bat`
-
-Если `.ps1` упал жёстко (нет `try/catch`, PowerShell engine крашнулся):
-- `.bat` ловит `%ERRORLEVEL% != 0`.
-- Отправляет минимальный отчёт: `{stage: "ps1-crashed", exitCode, psVersion, osVersion}`.
-- HTTP inline (без utils, потому что utils могли не загрузиться).
-
-### 9.5 Хранение
-
-- Таблица `script_error_reports`: `id`, `user_id`, `root_script`, `script_version`, `status`, `report_text`, `client_ip`, `user_agent`, `received_at`, `resolved_at`, `resolved_by`.
-- **Plaintext** (не сжимаем, не шифруем).
-- При `resolved` — **удаляется**, агрегат (`daily_stats`) сохраняется.
-- Retention: авто-удаление через 30 дней, если не разобран.
-
-### 9.6 Доступ
-
-- **Админ:** `/admin/scripts/reports` — все, фильтры.
-- **Пользователь:** `/sub/{token}/reports` — только свои, со статусом.
-
----
-
-## 10. API-модель доступа
-
-- `/sub/{token}/scripts` — **только для админа.** Обычный клиент сюда не ходит.
-- `/home` — entrypoint-кнопки. Клик → `/raw`. Eye-иконка → preview.
-- `/sub/{token}/scripts/{name}` — preview. Для PUBLIC-скриптов доступен с токеном. Для ADMIN-скриптов — только админ.
-- `/sub/{token}/scripts/{name}/raw` — аналогично.
-
----
-
-## 11. UI
-
-### 11.1 `/home`
-
-- Панели entrypoint-скриптов.
-- Клик по панели → скачивание (или deep-link, если это `happ://`).
-- **Eye-иконка** — только на панелях, ведущих к скачиванию файла (`.bat`, `.ps1`, `.sh`). Не на deep-link'ах.
-- Eye-иконка ведёт в preview. Там большая кнопка «Скачать».
-- **Бейджи обновлений:**
-    - Серый `1.5 → 1.6` при minor.
-    - Яркий при major.
-
-### 11.2 `/sub/{token}/scripts` (admin-only)
-
-Каталог: имя, версия, entrypoint, зависимости, статус.
-
-### 11.3 `/sub/{token}/scripts/{name}` (preview)
-
-- Содержимое с нумерацией строк.
-- Метаданные: версия, размер, платформа, зависимости.
-- Кнопка «Скачать».
-- Breadcrumbs.
-
-### 11.4 `/admin/scripts`
-
-Таблица:
-
-| Script | Version | Entry | Deps | Users on latest | Behind | Errors 24h |
-|---|---|---|---|---|---|---|
-
-Клик → детали скрипта.
-
-### 11.5 `/admin/scripts/{name}`
-
-- Список версий с датами, хэшами, source.
-- Кто использует: `user, version, applied_at`.
-- Кнопка **Rollback to vX.Y** для каждой версии.
-- Кнопка **Bump major**.
-- Граф зависимостей (кто от кого зависит).
-- История скачиваний.
-
-### 11.6 `/admin/scripts/reports`
-
-- Список отчётов с фильтрами.
-- Клик → `<pre>` с содержимым.
-- Кнопки: `in_progress`, `resolved`.
-
-### 11.7 `/sub/{token}/reports` (для клиента)
-
-- Свои отчёты: дата, скрипт, версия, статус.
-- Без содержимого (только «отправлено, разбирается, разобрано»).
-
----
-
-## 12. Схема БД (эскиз)
-
-```
-scripts
-  id, name, display_name, description, platform, access_level,
-  is_entrypoint, sort_order, enabled, created_at, updated_at,
-  is_seeded, seed_version
-
-script_versions
-  id, script_id, version, hash, size, created_at, invalidated_at,
-  snapshot_path, source, restore_of
-
-script_downloads
-  id, user_id, script_name, version, downloaded_at,
-  client_ip, user_agent
-
-user_script_versions
-  user_id, script_name, version, reported_at,
-  client_ip, user_agent
-  PK (user_id, script_name)
-
-script_version_reports        -- append-only, ротация
-  id, user_id, script_name, version, reported_at,
-  client_ip, user_agent
-
-script_error_reports
-  id, user_id, root_script, script_version,
-  status ('new'|'in_progress'|'resolved'),
-  report_text, client_ip, user_agent,
-  received_at, resolved_at, resolved_by
+try {
+    # ... изменение ...
+    Complete-PohrTransaction
+} catch {
+    Copy-Item $backup $configPath -Force
+    Complete-PohrTransaction
+    throw
+}
 ```
 
----
-
-## 13. Что НЕ делаем
-
-- ❌ Не пишем версию в исходники скриптов.
-- ❌ Не храним граф зависимостей в БД.
-- ❌ Не пропагируем версии вверх по зависимостям.
-- ❌ Не парсим содержимое на клиенте.
-- ❌ Не переименовываем файлы из ФС.
-- ❌ Не синхронизируем seed с volume автоматически.
-- ❌ Не делаем rollback каскадом.
-- ❌ Не шлём heartbeat'ы на каждый чих — только sync по факту применения.
+**Правило:** `Pristine` — один раз за всю жизнь файла. `Timestamped` — каждый запуск, с ротацией 5 последних.
 
 ---
 
-## 14. Открытые вопросы
+## 6. Антипаттерны
 
-Помечаю, что осталось решить — но не блокирует старт.
+❌ **Писать версию в исходник.** Не `# @version 1.5`, не `$SCRIPT_VERSION = "1.5"` руками. Только `{{__VERSION__}}`.
 
-1. **Валидация placeholder'а.** UI должен предупреждать, если админ сохраняет файл без `{{__VERSION__}}`? Или молча разрешать (fallback через заголовки сработает)?
-2. **Формат `report_text`.** Просто JSON.stringify собранных полей? Или человекочитаемый? Склоняюсь к структурированному JSON + заголовок «Report from user X, script Y vZ».
-3. **Дневные агрегаты по error reports.** Что именно хранить в `daily_stats`? Только count? Или count + топ-3 exception type?
-4. **`script_downloads` retention.** 1000 записей или 2 недели? Или оба условия?
-5. **Rate limiting.** Отложено на потом, но надо не забыть для `/sync` и `/error-report`.
-6. **Уведомления пользователю о доступных обновлениях.** Показывать бейдж на `/home` — ок. Но если пользователь неделю не заходит — как он узнает? Возможно, отдельное письмо / TG-сообщение — но это уже вне скриптов.
+❌ **Хардкодить URL сервера.** Только `{{BASE_URL}}`, `{{TOKEN}}`, `{{SCRIPTS_BASE_URL}}`.
+
+❌ **Писать свой HTTP-запрос.** Используй `Invoke-PohrHttp`.
+
+❌ **Молча падать.** Всегда `try/catch` + `send error-report`. Всегда меняй `$Stage`.
+
+❌ **Забыть sync в конце.** Сервер не узнает, что скрипт применился, и будет думать, что у пользователя ничего не стоит.
+
+❌ **Трогать чужие подписки / конфиги.** Наша подписка — `remarks = "Pohr"`. Всё остальное — пользователя, не наше.
+
+❌ **Делать `Write-Host` для логов.** Уйдёт в консоль, не в `pohr.log`. Используй `Write-Pohr*`.
+
+❌ **Читать `{{__VERSION__}}` как строку внутри одинарных кавычек.** `'{{__VERSION__}}'` в PowerShell не подставляется — сервер заменит `{{__VERSION__}}` на `1.5` до запуска, так что это будет `'1.5'`. Но если ты пишешь `"$($PohrScriptVersion)"` — то переменная должна быть уже установлена, а её значение = `"1.5"`. Не путай серверную подстановку и PowerShell-интерполяцию.
+
+❌ **Скачивать `.ps1` без чтения заголовка версии.** У пользователя будет `unknown` в sync, и в админке он не увидит разницу между старой и новой версией.
+
+❌ **Использовать `curl | bash` как паттерн доставки.** Pohr раздаёт скрипты через `/raw`, не через пайпы. Это позволяет верифицировать содержимое и логировать скачивания.
 
 ---
 
-## 15. Порядок реализации
+## 7. Чек-лист нового скрипта
 
-Предлагаю такой:
+Перед тем как сохранять скрипт через `/admin/scripts/new` или в classpath:
 
-1. **Миграция БД** — все таблицы.
-2. **`ScriptCatalogService`** — сканирование, регистрация, хэши, bump, детект зависимостей.
-3. **`ScriptVersionService`** — версии, `.history/`, rollback.
-4. **API-контроллеры** — `/scripts`, `/raw`, `/meta`, `/sync`, `/error-report`, preview.
-5. **UI** — `/home` (eye-иконки + бейджи), `/admin/scripts`, `/admin/scripts/{name}`, `/admin/scripts/reports`, `/sub/{token}/reports`.
-6. **Клиентские скрипты** — `pohr-utils.ps1`, переписанный `v2rayn-setup.ps1` (с sync, error-report, placeholder-версией).
-7. **`.bat`** — минимальные правки (передать `-RootVersion`, ловить exit code).
+- [ ] Имя файла следует `{platform}-{purpose}.{ext}`.
+- [ ] В начале `.ps1` есть `param()` с `-RootName`, `-RootVersion`, `-Ps1Version`.
+- [ ] `$ErrorActionPreference = "Stop"` (для `.ps1`) или `set -euo pipefail` (для `.sh`).
+- [ ] Первый шаг — загрузка `pohr-utils.ps1` через `{{SCRIPTS_BASE_URL}}/pohr-utils.ps1/raw`, с чтением `X-Pohr-Script-Version`.
+- [ ] Вся логика в `try/catch`.
+- [ ] `$Stage` меняется перед каждым значимым шагом.
+- [ ] Все изменения файлов идемпотентны.
+- [ ] Изменения чужих файлов обёрнуты в транзакцию с `New-PohrPristineBackup` + `New-PohrTimestampedBackup`.
+- [ ] В конце — `Send-PohrSync` с полным map'ом версий.
+- [ ] В `catch` — `Send-PohrErrorReport` с полным отчётом (OS, PS, stage, exception).
+- [ ] Логи через `Write-Pohr*`, не через `Write-Host`.
+- [ ] Никаких хардкодов URL, токенов, версий.
+- [ ] `{{__VERSION__}}` присутствует в шаблоне (для `.ps1`/`.bat`).
+- [ ] Скрипт зарегистрирован в `/admin/scripts` с правильным `accessLevel` (`PUBLIC` для клиентских, `ADMIN` для серверных).
+- [ ] Если это entrypoint — флаг `entrypoint = true`.
+- [ ] Если ссылается на другие скрипты — их имена упомянуты в тексте (для автодетекта зависимостей).
 
-Пункты 1–4 можно делать параллельно с 6, но 5 (UI) логичнее после 4. 6 пишем, когда есть `utils`-эндпоинт и `/sync`.
+---
+
+## 8. Полный пример: `v2rayn-setup.ps1`
+
+Ниже — минимально достаточный скелет, по которому можно писать любой клиентский скрипт.
+
+```powershell
+# Pohr: v2rayN setup for Windows.
+# Парный .bat: v2rayn-setup.bat.
+
+param(
+    [Parameter(Mandatory)] [string] $RootName,
+    [Parameter(Mandatory)] [string] $RootVersion,
+    [string] $Ps1Version = "unknown"
+)
+
+$ErrorActionPreference = "Stop"
+
+$PohrScriptName    = "v2rayn-setup.ps1"
+$PohrScriptVersion = "{{__VERSION__}}"
+$BaseUrl           = "{{BASE_URL}}"
+$Token             = "{{TOKEN}}"
+$ScriptsBaseUrl    = "{{SCRIPTS_BASE_URL}}"
+
+$Stage = "init"
+$UtilsVersion = "unknown"
+
+try {
+
+    # ---------- 1. Utils ----------
+    $Stage = "load-utils"
+    Write-Host "  Загружаю утилиты Pohr..." -ForegroundColor Cyan
+
+    $utilsPath = Join-Path $env:TEMP "pohr-utils.ps1"
+    $resp = Invoke-WebRequest -Uri "$ScriptsBaseUrl/pohr-utils.ps1/raw" `
+                              -OutFile $utilsPath -UseBasicParsing -PassThru
+    $UtilsVersion = $resp.Headers["X-Pohr-Script-Version"]
+    . $utilsPath
+
+    Write-PohrOk "Утилиты v$UtilsVersion загружены"
+
+    # ---------- 2. Recovery ----------
+    $Stage = "recovery"
+    $pending = Get-PohrPendingTransaction
+    if ($pending) {
+        Write-PohrWarn "Незавершённая операция: $($pending.name)"
+        if (Test-Path $pending.backup) {
+            Copy-Item $pending.backup $pending.target -Force
+            Write-PohrOk "Восстановлено из бэкапа"
+        }
+        Complete-PohrTransaction
+    }
+
+    # ---------- 3. Поиск клиента ----------
+    $Stage = "find-client"
+    # ... (функции поиска v2rayN) ...
+    $v2rayDir = Get-V2rayDir
+    if (-not $v2rayDir) {
+        throw "v2rayN не найден. Установите его с https://github.com/2dust/v2rayN/releases"
+    }
+    Write-PohrOk "v2rayN найден: $v2rayDir"
+
+    $configPath = Find-V2rayConfig $v2rayDir
+    if (-not $configPath) {
+        throw "guiNConfig.json не найден. Запустите v2rayN один раз и повторите."
+    }
+
+    # ---------- 4. Backup + transaction ----------
+    $Stage = "backup"
+    New-PohrPristineBackup -FilePath $configPath -Tag "pohr" | Out-Null
+    $backup = New-PohrTimestampedBackup -FilePath $configPath -Tag "pohr"
+    Start-PohrTransaction -Name "patch-$PohrScriptName" -BackupPath $backup -Target $configPath
+
+    try {
+        # ---------- 5. Остановка клиента ----------
+        $Stage = "stop-client"
+        Get-Process -Name "v2rayN" -ErrorAction SilentlyContinue | Stop-Process -Force
+        Start-Sleep -Seconds 2
+
+        # ---------- 6. Патч конфига ----------
+        $Stage = "patch-config"
+        $json = Read-PohrJson $configPath
+
+        # subItem
+        if (-not ($json.PSObject.Properties.Name -contains "subItem")) {
+            $json | Add-Member -NotePropertyName "subItem" -NotePropertyValue @()
+        }
+        $json.subItem = @($json.subItem | Where-Object { $_.remarks -ne "Pohr" })
+        $json.subItem += [PSCustomObject]@{
+            id                 = [guid]::NewGuid().ToString()
+            remarks            = "Pohr"
+            url                = "{{SUBSCRIPTION_URL}}"
+            enabled            = $true
+            convertTarget      = "v2ray"
+            autoUpdateInterval = 360
+        }
+
+        # fragment (v7)
+        if ($json.PSObject.Properties.Name -contains "CoreBasicItem") {
+            $json.CoreBasicItem.EnableFragment = $true
+            $json | Add-Member -NotePropertyName "Fragment4RayItem" `
+                    -NotePropertyValue ([PSCustomObject]@{
+                        Packets  = "tlshello"
+                        Lengths  = @("100-200")
+                        Delays   = @("10-20")
+                        MaxSplit = "0"
+                    }) -Force
+        }
+
+        Write-PohrJson -Object $json -Path $configPath
+        Write-PohrOk "Конфиг обновлён"
+
+        Complete-PohrTransaction
+    } catch {
+        Write-PohrError "Ошибка патча, восстанавливаю из бэкапа"
+        Copy-Item $backup $configPath -Force
+        Complete-PohrTransaction
+        throw
+    }
+
+    # ---------- 7. Запуск клиента ----------
+    $Stage = "start-client"
+    Start-Process -FilePath (Join-Path $v2rayDir "v2rayN.exe") -WorkingDirectory $v2rayDir
+
+    # ---------- 8. Sync ----------
+    $Stage = "sync"
+    $versions = @{
+        $RootName        = $RootVersion
+        $PohrScriptName  = $PohrScriptVersion
+        "pohr-utils.ps1" = $UtilsVersion
+    }
+    Send-PohrSync -BaseUrl $BaseUrl -Token $Token -RootName $RootName -Versions $versions
+
+    Write-Host ""
+    Write-PohrOk "Готово. Откройте v2rayN и обновите подписку ""Pohr"" (Ctrl+E)."
+    exit 0
+}
+catch {
+    $Stage = $Stage ?? "unknown"
+    $report = @"
+Script:    $PohrScriptName v$PohrScriptVersion
+Root:      $RootName v$RootVersion
+Stage:     $Stage
+Exception: $($_.Exception.GetType().FullName)
+Message:   $($_.Exception.Message)
+Stack:     $($_.ScriptStackTrace)
+OS:        $([System.Environment]::OSVersion)
+PS:        $($PSVersionTable.PSVersion)
+"@
+    Write-PohrError "Ошибка на шаге '$Stage': $($_.Exception.Message)"
+
+    if (Read-PohrConfirm "Произошла ошибка. Отправить отчёт разработчику?" -Default $true) {
+        try {
+            Send-PohrErrorReport -BaseUrl $BaseUrl -Token $Token `
+                                 -RootName $RootName -RootVersion $RootVersion `
+                                 -Stage $Stage -Report $report
+        } catch {}
+    }
+    exit 1
+}
+```
+
+Этот шаблон — эталон. Любой новый скрипт строится по нему: `param()` → utils → recovery → domain logic → sync, всё в `try/catch`.

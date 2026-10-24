@@ -144,7 +144,6 @@ public class NativeHints {
             hints.reflection().registerType(org.Roclh.model.dto.edge.EdgeRouteDto.class, MemberCategory.values());
             hints.reflection().registerType(org.Roclh.model.dto.edge.EdgeSiteForm.class, MemberCategory.values());
             hints.reflection().registerType(org.Roclh.model.dto.edge.EdgeSiteDto.class, MemberCategory.values());
-            // Nested records в контроллерах скриптов
             hints.reflection().registerType(
                     org.Roclh.controller.admin.AdminScriptController.Row.class,
                     MemberCategory.values());
@@ -153,6 +152,30 @@ public class NativeHints {
                     MemberCategory.values());
             hints.reflection().registerType(
                     org.Roclh.model.script.ScriptVersion.class,
+                    MemberCategory.values());
+            hints.reflection().registerType(
+                    org.Roclh.service.script.ScriptSyncService.SyncRequest.class,
+                    MemberCategory.values());
+            hints.reflection().registerType(
+                    org.Roclh.service.script.ScriptSyncService.SyncResponse.class,
+                    MemberCategory.values());
+            hints.reflection().registerType(
+                    org.Roclh.service.script.ScriptErrorReportService.ErrorRequest.class,
+                    MemberCategory.values());
+            hints.reflection().registerType(
+                    org.Roclh.service.script.ScriptUpdateService.ScriptUpdate.class,
+                    MemberCategory.values());
+            hints.reflection().registerType(
+                    org.Roclh.service.script.ScriptUpdateService.EntrypointUpdates.class,
+                    MemberCategory.values());
+            hints.reflection().registerType(
+                    org.Roclh.controller.ScriptApiController.SyncPayload.class,
+                    MemberCategory.values());
+            hints.reflection().registerType(
+                    org.Roclh.controller.ScriptApiController.ErrorPayload.class,
+                    MemberCategory.values());
+            hints.reflection().registerType(
+                    org.Roclh.controller.admin.AdminScriptController.Row.class,
                     MemberCategory.values());
         }
     }

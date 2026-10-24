@@ -52,6 +52,6 @@ public class AdminClientConfigController {
         } catch (Exception e) {
             flash.addFlashAttribute("errorMessage", e.getMessage());
         }
-        return "redirect:/admin/client/client-configs/" + name + "/edit";
+        return "redirect:/admin/client-configs/" + name + "/edit";
     }
 }

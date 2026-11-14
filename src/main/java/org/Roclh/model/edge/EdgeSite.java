@@ -26,9 +26,13 @@ public class EdgeSite {
     @Column(name = "domain", nullable = false, unique = true, length = 253)
     private String domain;
 
-    /** proxy | redirect */
+    /** proxy | redirect | static */
     @Column(name = "site_type", nullable = false, length = 16)
     private String siteType;
+
+    /** Каталог с файлами для site_type=static. Пусто — `${pohr.edge.home}/site`. */
+    @Column(name = "root_path", length = 512)
+    private String rootPath;
 
     @Column(name = "upstream_host", length = 255)
     private String upstreamHost;

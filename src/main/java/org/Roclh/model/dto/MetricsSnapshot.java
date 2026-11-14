@@ -6,6 +6,7 @@ public record MetricsSnapshot(
         String ts,
         Double podCpuPct,
         Long   podMemBytes,
+        Long   podAnonBytes,
         Long   podMemLimitBytes,
         Long   jvmHeapBytes,
         Integer jvmThreads,
@@ -22,7 +23,8 @@ public record MetricsSnapshot(
 ) {
     public static MetricsSnapshot from(MetricSample s) {
         return new MetricsSnapshot(
-                s.getTs(), s.getPodCpuPct(), s.getPodMemBytes(), s.getPodMemLimitBytes(),
+                s.getTs(), s.getPodCpuPct(), s.getPodMemBytes(), s.getPodAnonBytes(),
+                s.getPodMemLimitBytes(),
                 s.getJvmHeapBytes(), s.getJvmThreads(),
                 s.isXrayRunning(), s.getXrayCpuPct(), s.getXrayMemBytes(),
                 s.getXrayRxBytes(), s.getXrayTxBytes(),

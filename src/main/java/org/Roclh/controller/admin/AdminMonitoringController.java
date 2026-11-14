@@ -47,9 +47,13 @@ public class AdminMonitoringController {
                         snapshots.stream().map(MetricsSnapshot::telemtCpuPct).toList())
         ), "%", 600, 120));
 
-        // RAM: pod (bold) + xray (dashed) + telemt (dashed)
+        // RAM: anon (давление, bold) + весь cgroup с кэшем (dashed) + xray + telemt.
+        // memory.current включает page cache, поэтому «упёрлись в лимит» по нему
+        // ещё не значит, что памяти не хватает: anon вытеснить нельзя, кэш — можно.
         model.addAttribute("memChart", MetricsService.buildMultiChart(List.of(
-                new NamedSeries("Pod",    "chart-line-pod",    false,
+                new NamedSeries("Давление (anon)", "chart-line-pod", false,
+                        snapshots.stream().map(s -> toMb(s.podAnonBytes())).toList()),
+                new NamedSeries("Pod + кэш", "chart-line-cache", true,
                         snapshots.stream().map(s -> toMb(s.podMemBytes())).toList()),
                 new NamedSeries("Xray",   "chart-line-xray",   true,
                         snapshots.stream().map(s -> toMb(s.xrayMemBytes())).toList()),

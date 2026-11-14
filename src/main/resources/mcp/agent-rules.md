@@ -67,6 +67,19 @@
 | `logs_tail` | Хвост лога `xray` / `telemt` / `nginx` / `caddy` |
 | `traffic_overview` | Трафик за сегодня, активные соединения, топ клиентов |
 | `nodes_list` | Статус EU-нод и туннелей |
+| `memory_report` | Память сейчас: cgroup anon/file/slab, memory.events, топ процессов по RSS/anon/THP, мусорные процессы, размер БД |
+| `metrics_stats` | Статистика за окно в готовом виде: min/avg/max по anon/занятой/Xray/telemt/heap, доля точек у лимита, тренд, свёртка по часам |
+
+### Edge
+
+| Инструмент | Назначение |
+|---|---|
+| `edge_status` | Порты stream/http/https, fallback, процессы nginx/caddy, количество маршрутов и сайтов, sha256 конфигов |
+| `edge_config_read` | `edge_config`, все SNI-маршруты и Caddy-сайты, сгенерированные `nginx.conf` и `Caddyfile` текстом + sha256 |
+| `edge_preview` | Собрать конфиги в память и вернуть unified diff к файлам на диске; при отсутствии изменений — `status=same` |
+
+Все три инструмента read-only: они не пишут файлы, не вызывают `apply()`
+и не перезапускают процессы. Мутирующих edge-инструментов нет.
 
 Инструменты возвращают JSON. Ошибка приходит с `isError: true` и текстом
 `Ошибка: ...` — не игнорируй её и не повторяй вызов без исправления причины.
@@ -149,9 +162,23 @@
 
 ### 3.7 Диагностика
 
-`server_status`, `logs_tail`, `traffic_overview`, `nodes_list` — read-only.
+`server_status`, `logs_tail`, `traffic_overview`, `nodes_list`,
+`memory_report`, `metrics_stats` — read-only.
 Начинай разбор инцидента с `server_status` и `logs_tail`, а не с догадок.
 Помни: `logs_tail` хранит только строки с момента старта процесса.
+
+Для edge: `edge_status` — процессы и hash конфигов, `edge_config_read` —
+маршруты/сайты и тексты `nginx.conf`/`Caddyfile`, `edge_preview` — diff без
+применения. Перед выводами о расхождении БД и диска используй эти инструменты,
+а не догадки.
+
+**Память.** Разбор инцидента «кончилась память» начинай с `memory_report`:
+`memory.current` включает page cache, и «480 из 480» само по себе не означает
+дефицит. Смотри на `anon` (его нельзя вытеснить) и на `events.oomKill`:
+`hitLimit > 0` при `oomKill = 0` — это reclaim, а не падение процессов.
+Дальше `metrics_stats(hours=24)` даёт тренд и распределение, чтобы отличить
+утечку от прогрева после рестарта. Никогда не проси сырые поминутные точки:
+эти два инструмента отдают уже посчитанные значения.
 
 ## 4. Контракт клиентских скриптов (кратко)
 

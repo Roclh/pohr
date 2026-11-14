@@ -26,11 +26,18 @@
             <div class="metric-tile">
                 <div class="metric-label" th:text="#{admin.monitoring.mem}">RAM (pod)</div>
                 <div class="metric-value"
-                     th:text="${latest.podMemBytes() != null
-                         ? T(java.lang.String).format('%.1f MB', latest.podMemBytes() / 1048576.0) : '—'}">—</div>
+                     th:text="${latest.podAnonBytes() != null
+                         ? T(java.lang.String).format('%.1f MB', latest.podAnonBytes() / 1048576.0)
+                         : (latest.podMemBytes() != null
+                             ? T(java.lang.String).format('%.1f MB', latest.podMemBytes() / 1048576.0) : '—')}">—</div>
                 <div class="metric-sub"
                      th:if="${latest.podMemLimitBytes() != null}"
                      th:text="'limit: ' + ${T(java.lang.String).format('%.0f MB', latest.podMemLimitBytes() / 1048576.0)}">—</div>
+                <div class="metric-sub"
+                     th:if="${latest.podAnonBytes() != null and latest.podMemBytes() != null}"
+                     th:text="${T(java.lang.String).format('занято %.0f MB · кэш %.0f MB',
+                     latest.podMemBytes() / 1048576.0,
+                     (latest.podMemBytes() - latest.podAnonBytes()) / 1048576.0)}">—</div>
             </div>
             <div class="metric-tile">
                 <div class="metric-label" th:text="#{admin.monitoring.heap}">JVM heap</div>
@@ -94,21 +101,20 @@
                 </div>
             </div>
             <div class="chart-legend">
-            <span th:each="s : ${cpuChart.series()}" class="chart-legend-item">
-                <span class="chart-legend-swatch" th:classappend="${s.cssClass()}"></span>
-                <span th:text="${s.label()}">Series</span>
-            </span>
+            <button type="button" th:each="s : ${cpuChart.series()}" class="chart-legend-item"
+                    th:attr="data-series=${s.label()}" th:text="${s.label()}">Series</button>
             </div>
             <div class="chart-wrap">
                 <div class="chart-y-axis">
                     <span th:each="t : ${cpuChart.yTicks()}" th:text="${t}">—</span>
                 </div>
-                <svg viewBox="0 0 600 120" preserveAspectRatio="none" class="chart">
+                <svg viewBox="0 0 600 120" preserveAspectRatio="none" class="chart"
+                     th:attr="data-series-chart=${#lists.size(cpuChart.series())}">
                     <line x1="0" y1="0"   x2="600" y2="0"   class="chart-grid"/>
                     <line x1="0" y1="60"  x2="600" y2="60"  class="chart-grid"/>
                     <line x1="0" y1="120" x2="600" y2="120" class="chart-grid"/>
                     <path th:each="s : ${cpuChart.series()}"
-                          th:attr="d=${s.path()},class=${s.cssClass()}"/>
+                          th:attr="d=${s.path()},class=${s.cssClass()},data-series=${s.label()}"/>
                 </svg>
             </div>
             <div class="chart-x-axis" th:if="${chartXStart != null}">
@@ -129,21 +135,20 @@
                 </div>
             </div>
             <div class="chart-legend">
-            <span th:each="s : ${memChart.series()}" class="chart-legend-item">
-                <span class="chart-legend-swatch" th:classappend="${s.cssClass()}"></span>
-                <span th:text="${s.label()}">Series</span>
-            </span>
+            <button type="button" th:each="s : ${memChart.series()}" class="chart-legend-item"
+                    th:attr="data-series=${s.label()}" th:text="${s.label()}">Series</button>
             </div>
             <div class="chart-wrap">
                 <div class="chart-y-axis">
                     <span th:each="t : ${memChart.yTicks()}" th:text="${t}">—</span>
                 </div>
-                <svg viewBox="0 0 600 120" preserveAspectRatio="none" class="chart">
+                <svg viewBox="0 0 600 120" preserveAspectRatio="none" class="chart"
+                     th:attr="data-series-chart=${#lists.size(memChart.series())}">
                     <line x1="0" y1="0"   x2="600" y2="0"   class="chart-grid"/>
                     <line x1="0" y1="60"  x2="600" y2="60"  class="chart-grid"/>
                     <line x1="0" y1="120" x2="600" y2="120" class="chart-grid"/>
                     <path th:each="s : ${memChart.series()}"
-                          th:attr="d=${s.path()},class=${s.cssClass()}"/>
+                          th:attr="d=${s.path()},class=${s.cssClass()},data-series=${s.label()}"/>
                 </svg>
             </div>
             <div class="chart-x-axis" th:if="${chartXStart != null}">
@@ -164,21 +169,20 @@
                 </div>
             </div>
             <div class="chart-legend">
-            <span th:each="s : ${jvmChart.series()}" class="chart-legend-item">
-                <span class="chart-legend-swatch" th:classappend="${s.cssClass()}"></span>
-                <span th:text="${s.label()}">Series</span>
-            </span>
+            <button type="button" th:each="s : ${jvmChart.series()}" class="chart-legend-item"
+                    th:attr="data-series=${s.label()}" th:text="${s.label()}">Series</button>
             </div>
             <div class="chart-wrap">
                 <div class="chart-y-axis">
                     <span th:each="t : ${jvmChart.yTicks()}" th:text="${t}">—</span>
                 </div>
-                <svg viewBox="0 0 600 120" preserveAspectRatio="none" class="chart">
+                <svg viewBox="0 0 600 120" preserveAspectRatio="none" class="chart"
+                     th:attr="data-series-chart=${#lists.size(jvmChart.series())}">
                     <line x1="0" y1="0"   x2="600" y2="0"   class="chart-grid"/>
                     <line x1="0" y1="60"  x2="600" y2="60"  class="chart-grid"/>
                     <line x1="0" y1="120" x2="600" y2="120" class="chart-grid"/>
                     <path th:each="s : ${jvmChart.series()}"
-                          th:attr="d=${s.path()},class=${s.cssClass()}"/>
+                          th:attr="d=${s.path()},class=${s.cssClass()},data-series=${s.label()}"/>
                 </svg>
             </div>
             <div class="chart-x-axis" th:if="${chartXStart != null}">
@@ -204,21 +208,20 @@
                 </div>
             </div>
             <div class="chart-legend">
-                <span th:each="s : ${flowsChart.series()}" class="chart-legend-item">
-                    <span class="chart-legend-swatch" th:classappend="${s.cssClass()}"></span>
-                    <span th:text="${s.label()}">Series</span>
-                </span>
+                <button type="button" th:each="s : ${flowsChart.series()}" class="chart-legend-item"
+                        th:attr="data-series=${s.label()}" th:text="${s.label()}">Series</button>
             </div>
             <div class="chart-wrap">
                 <div class="chart-y-axis">
                     <span th:each="t : ${flowsChart.yTicks()}" th:text="${t}">—</span>
                 </div>
-                <svg viewBox="0 0 600 120" preserveAspectRatio="none" class="chart">
+                <svg viewBox="0 0 600 120" preserveAspectRatio="none" class="chart"
+                     th:attr="data-series-chart=${#lists.size(flowsChart.series())}">
                     <line x1="0" y1="0"   x2="600" y2="0"   class="chart-grid"/>
                     <line x1="0" y1="60"  x2="600" y2="60"  class="chart-grid"/>
                     <line x1="0" y1="120" x2="600" y2="120" class="chart-grid"/>
                     <path th:each="s : ${flowsChart.series()}"
-                          th:attr="d=${s.path()},class=${s.cssClass()}"/>
+                          th:attr="d=${s.path()},class=${s.cssClass()},data-series=${s.label()}"/>
                 </svg>
             </div>
         </div>
@@ -320,5 +323,69 @@
         <p th:if="${#lists.isEmpty(nodes)}" class="muted" th:text="#{node.list.empty}">No nodes</p>
     </section>
 </main>
+
+<script>
+    // Выделение линии по клику на её подпись в легенде.
+    // Ничего не выбрано — все линии как есть. Выбрана одна или несколько —
+    // они рисуются в полную силу, остальные приглушаются для сравнения.
+    // Повторный клик снимает выделение; когда не выбрано ничего — всё как было.
+    (function () {
+        'use strict';
+
+        const SELECTED = 'chart-legend-selected';
+        const DIMMED = 'chart-legend-dimmed';
+        const LINE_DIMMED = 'chart-line-dimmed';
+
+        document.querySelectorAll('.chart-block').forEach(function (block) {
+            const svg = block.querySelector('svg.chart');
+            const items = Array.prototype.slice.call(block.querySelectorAll('.chart-legend-item'));
+            if (!svg || !items.length) return;
+
+            const lines = Array.prototype.slice.call(svg.querySelectorAll('path[data-series]'));
+            const byLabel = new Map();
+            lines.forEach(function (path) {
+                byLabel.set(path.getAttribute('data-series'), path);
+            });
+            // Одиночную серию гасить нечем: на графике нет других линий.
+            const multi = items.length > 1;
+
+            items.forEach(function (item) {
+                item.setAttribute('role', 'button');
+                item.setAttribute('aria-pressed', 'false');
+                item.addEventListener('click', function () {
+                    item.classList.toggle(SELECTED);
+                    paint();
+                });
+            });
+
+            function paint() {
+                const chosen = items.filter(function (item) {
+                    return item.classList.contains(SELECTED);
+                });
+                const hasChoice = chosen.length > 0;
+
+                items.forEach(function (item) {
+                    const on = item.classList.contains(SELECTED);
+                    const muted = hasChoice && !on;
+                    item.classList.toggle(DIMMED, muted);
+                    item.setAttribute('aria-pressed', on ? 'true' : 'false');
+                    const path = byLabel.get(item.getAttribute('data-series'));
+                    if (path) {
+                        path.classList.toggle(LINE_DIMMED, multi && muted);
+                    }
+                });
+
+                svg.classList.toggle('chart-focus', hasChoice);
+                if (hasChoice) {
+                    svg.setAttribute('data-focus', chosen.map(function (item) {
+                        return item.getAttribute('data-series');
+                    }).join('|'));
+                } else {
+                    svg.removeAttribute('data-focus');
+                }
+            }
+        });
+    })();
+</script>
 </body>
 </html>

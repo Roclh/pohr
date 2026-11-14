@@ -18,11 +18,150 @@
             <a class="button" th:href="@{/admin/edge/config}" th:text="#{admin.edge.config}">Config</a>
             <a class="button" th:href="@{/admin/edge/routes}" th:text="#{admin.edge.routes}">Routes</a>
             <a class="button" th:href="@{/admin/edge/sites}" th:text="#{admin.edge.sites}">Sites</a>
+            <a class="button" th:href="@{/admin/edge#sni-map}" th:text="#{admin.edge.map.link}">SNI map</a>
+            <a class="button" th:href="@{/admin/edge#generated-configs}" th:text="#{admin.edge.configs.link}">Configs</a>
+            <a class="button" th:href="@{/admin/edge/preview}" th:text="#{admin.edge.preview.open}">Preview</a>
         </div>
         <form th:action="@{/admin/edge/apply}" method="post" class="inline">
             <button type="submit" th:text="#{admin.edge.apply}">Apply now</button>
         </form>
     </div>
+
+    <!-- ============================================================ -->
+    <!-- SNI map                                                      -->
+    <!-- ============================================================ -->
+    <section class="card" id="sni-map">
+        <h2 th:text="#{admin.edge.map.title}">SNI map</h2>
+        <p class="muted" th:text="#{admin.edge.map.text}"></p>
+        <p class="edge-map-meta">
+            <span th:text="#{admin.edge.map.serverIp}">Server IP:</span>
+            <code th:if="${edgeMap.serverIp != null}" th:text="${edgeMap.serverIp}"></code>
+            <span th:if="${edgeMap.serverIp == null}" class="badge stopped"
+                  th:text="#{admin.edge.map.unknown}">unknown</span>
+            <span th:if="${edgeMap.publicHost != null}"> · <span th:text="#{admin.edge.map.publicHost}">Public host:</span>
+                <code th:text="${edgeMap.publicHost}"></code></span>
+            <span th:if="${edgeMap.baseDomain != null}"> · <span th:text="#{admin.edge.map.baseDomain}">Base domain:</span>
+                <code th:text="${edgeMap.baseDomain}"></code></span>
+        </p>
+
+        <div th:if="${!#lists.isEmpty(edgeMap.warnings)}" class="edge-warnings">
+            <h3 th:text="#{admin.edge.warnings}">Warnings</h3>
+            <ul>
+                <li th:each="w : ${edgeMap.warnings}"
+                    th:classappend="'warn-' + ${#strings.toLowerCase(w.severity)}">
+                    <strong th:text="${w.severity}">WARN</strong>
+                    <span th:with="msg=${#messages.msg('admin.edge.warning.' + w.code)}"
+                          th:text="${msg + (w.subject != null ? ': ' + w.subject : '') + (w.detail != null ? ' (' + w.detail + ')' : '')}"></span>
+                </li>
+            </ul>
+        </div>
+
+        <table class="table" th:if="${!#lists.isEmpty(edgeMap.routes)}">
+            <thead>
+            <tr>
+                <th th:text="#{admin.edge.map.sni}">SNI</th>
+                <th th:text="#{admin.edge.map.target}">Target</th>
+                <th th:text="#{admin.edge.map.type}">Type</th>
+                <th th:text="#{admin.edge.map.resolves}">Resolves to server IP</th>
+                <th th:text="#{admin.edge.map.warnings}">Warnings</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="row : ${edgeMap.routes}">
+                <td><code th:text="${row.sni}">htmlacademy.ru</code></td>
+                <td><code th:text="${row.target}">127.0.0.1:8443</code></td>
+                <td>
+                    <span class="badge edge-type"
+                          th:classappend="'edge-type-' + ${row.type}"
+                          th:text="${#messages.msg('admin.edge.type.' + row.type)}">reality</span>
+                </td>
+                <td>
+                    <span th:if="${edgeMap.serverIp == null}" class="muted"
+                          th:text="#{admin.edge.map.unknown}">unknown</span>
+                    <span th:if="${edgeMap.serverIp != null}"
+                          th:classappend="${row.resolves} ? 'edge-yes' : 'edge-no'"
+                          th:text="${row.resolves ? #messages.msg('admin.edge.map.yes') : #messages.msg('admin.edge.map.no')}">no</span>
+                    <div th:if="${!#lists.isEmpty(row.addresses)}" class="muted edge-addresses"
+                         th:text="${#strings.listJoin(row.addresses, ', ')}"></div>
+                </td>
+                <td>
+                    <ul class="edge-warning-list" th:if="${!#lists.isEmpty(row.warnings)}">
+                        <li th:each="w : ${row.warnings}"
+                            th:classappend="'warn-' + ${#strings.toLowerCase(w.severity)}">
+                            <span th:with="msg=${#messages.msg('admin.edge.warning.' + w.code)}"
+                                  th:text="${msg + (w.detail != null ? ' (' + w.detail + ')' : '')}"></span>
+                        </li>
+                    </ul>
+                    <span th:if="${#lists.isEmpty(row.warnings)}" class="muted">—</span>
+                </td>
+            </tr>
+            <tr class="fallback-row">
+                <td><code th:text="#{admin.edge.map.fallbackSni}">default</code></td>
+                <td><code th:text="${edgeMap.fallback.target}">127.0.0.1:8444</code></td>
+                <td>
+                    <span class="badge edge-type edge-type-fallback"
+                          th:text="${#messages.msg('admin.edge.type.' + edgeMap.fallback.type)}">fallback</span>
+                </td>
+                <td class="muted">—</td>
+                <td>
+                    <ul class="edge-warning-list" th:if="${!#lists.isEmpty(edgeMap.fallback.warnings)}">
+                        <li th:each="w : ${edgeMap.fallback.warnings}"
+                            th:classappend="'warn-' + ${#strings.toLowerCase(w.severity)}">
+                            <span th:with="msg=${#messages.msg('admin.edge.warning.' + w.code)}"
+                                  th:text="${msg + (w.detail != null ? ' (' + w.detail + ')' : '')}"></span>
+                        </li>
+                    </ul>
+                    <span th:if="${#lists.isEmpty(edgeMap.fallback.warnings)}" class="muted">—</span>
+                </td>
+            </tr>
+            </tbody>
+        </table>
+        <p th:if="${#lists.isEmpty(edgeMap.routes)}" class="muted"
+           th:text="#{admin.edge.map.empty}">No enabled routes</p>
+    </section>
+
+    <!-- ============================================================ -->
+    <!-- Generated configs                                            -->
+    <!-- ============================================================ -->
+    <section class="card" id="generated-configs">
+        <h2 th:text="#{admin.edge.configs.title}">Generated configs</h2>
+        <p class="muted" th:text="#{admin.edge.configs.text}"></p>
+
+        <div class="edge-config-block" th:each="file : ${configList}">
+            <h3>
+                <code th:text="${file.name}">nginx.conf</code>
+                <span class="badge" th:classappend="${file.same} ? 'enabled' : 'stopped'"
+                      th:text="${file.same ? #messages.msg('admin.edge.configs.same') : #messages.msg('admin.edge.configs.diff')}">same</span>
+                <span th:if="${!file.existsOnDisk}" class="badge stopped"
+                      th:text="#{admin.edge.configs.missing}">missing</span>
+            </h3>
+            <p class="muted edge-config-meta">
+                <span th:text="#{admin.edge.configs.path}">Path:</span>
+                <code th:text="${file.path}">/app/xray/edge/nginx.conf</code><br>
+                <span th:text="#{admin.edge.configs.hash}">SHA-256:</span>
+                <code th:text="${file.generatedHash}">hash</code>
+                <span th:if="${file.diskHash != null and !file.same}">
+                    · <span th:text="#{admin.edge.configs.diskHash}">on disk:</span>
+                    <code th:text="${file.diskHash}">hash</code>
+                </span>
+            </p>
+            <div class="toolbar edge-config-toolbar">
+                <button type="button" class="copy-config"
+                        th:attr="data-target='cfg-' + ${file.name}"
+                        th:text="#{admin.edge.configs.copy}">Copy</button>
+                <a th:if="${file.name == 'nginx.conf'}" class="button"
+                   th:href="@{/admin/edge/config/nginx(download=true)}"
+                   th:text="#{admin.edge.configs.download}">Download</a>
+                <a th:if="${file.name == 'Caddyfile'}" class="button"
+                   th:href="@{/admin/edge/config/caddy(download=true)}"
+                   th:text="#{admin.edge.configs.download}">Download</a>
+                <a class="button" th:href="@{/admin/edge/preview}"
+                   th:text="#{admin.edge.preview.open}">Preview diff</a>
+            </div>
+            <pre class="config-view" th:id="'cfg-' + ${file.name}"
+                 th:text="${file.generatedText}">config</pre>
+        </div>
+    </section>
 
     <section class="card">
         <h2>nginx stream</h2>
@@ -106,5 +245,32 @@
         <div th:replace="~{fragments/layout :: logViewer('/ws/caddy-logs', ${caddyLogs}, null)}"></div>
     </section>
 </main>
+
+<script>
+    (function () {
+        document.querySelectorAll('.copy-config').forEach(function (button) {
+            button.addEventListener('click', function () {
+                var pre = document.getElementById(button.dataset.target);
+                if (!pre) return;
+                var text = pre.textContent || '';
+                function done() {
+                    var original = button.textContent;
+                    button.textContent = '✓';
+                    setTimeout(function () { button.textContent = original; }, 1200);
+                }
+                if (navigator.clipboard && navigator.clipboard.writeText) {
+                    navigator.clipboard.writeText(text).then(done, function () {});
+                } else {
+                    var area = document.createElement('textarea');
+                    area.value = text;
+                    document.body.appendChild(area);
+                    area.select();
+                    try { document.execCommand('copy'); done(); } catch (e) { /* ignore */ }
+                    document.body.removeChild(area);
+                }
+            });
+        });
+    })();
+</script>
 </body>
 </html>

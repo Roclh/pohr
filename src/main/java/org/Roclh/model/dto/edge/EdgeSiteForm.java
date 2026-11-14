@@ -10,9 +10,14 @@ public record EdgeSiteForm(
         String domain,
 
         @NotBlank
-        @Pattern(regexp = "^(proxy|redirect)$",
+        @Pattern(regexp = "^(proxy|redirect|static)$",
                 message = "{validation.edge.site.type.pattern}")
         String siteType,
+
+        @Size(max = 512)
+        @Pattern(regexp = "^$|^/[A-Za-z0-9._/-]+$",
+                message = "{validation.edge.site.rootPath.pattern}")
+        String rootPath,
 
         @Size(max = 255)
         String upstreamHost,

@@ -126,7 +126,13 @@ public class XrayConfigMaterializer {
      * <p>Без этого блока Xray не считает трафик по пользователям: нужны
      * top-level {@code stats}, inbound {@code dokodemo-door} с тегом {@code api},
      * правило маршрутизации на этот тег и policy-флаги
-     * {@code statsUserUplink/Downlink/Online} для уровня 0.</p>
+     * {@code statsUserUplink/Downlink} для уровня 0.</p>
+     *
+     * <p>Намеренно не включаем {@code statsUserOnline}: приложение его не читает
+     * (активные клиенты и соединения считаются из {@code TcpConnectionCounter}),
+     * а Xray ведутся лишние структуры на каждое соединение. Из api-сервисов
+     * оставлен только {@code StatsService} — {@code HandlerService} и
+     * {@code LoggerService} не используются и тоже стоят памяти и потоков.</p>
      *
      * <p>API слушает только 127.0.0.1 и наружу не публикуется.</p>
      */
@@ -139,8 +145,6 @@ public class XrayConfigMaterializer {
         api.put("tag", "api");
         ArrayNode services = api.putArray("services");
         services.add("StatsService");
-        services.add("HandlerService");
-        services.add("LoggerService");
 
         ArrayNode inbounds = ensureArray(rootObj, "inbounds");
         removeByTag(inbounds, "api");
@@ -203,7 +207,6 @@ public class XrayConfigMaterializer {
         }
         level0.put("statsUserUplink", true);
         level0.put("statsUserDownlink", true);
-        level0.put("statsUserOnline", true);
     }
 
     /** Строит два представления: исходный конфиг из БД и материализованный (со вставками). */

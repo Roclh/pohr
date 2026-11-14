@@ -36,8 +36,8 @@ public class AdminEdgeSiteController {
     @GetMapping("/new")
     public String newForm(Model model) {
         model.addAttribute("form", new EdgeSiteForm(
-                "", "proxy", "127.0.0.1", 8080,
-                "127.0.0.1", null, null,
+                "", "proxy", "", "127.0.0.1", 8080,
+                "", null, null,
                 "acme", "", "", true));
         model.addAttribute("mode", "create");
         return "admin/edge/edge-site-form";
@@ -62,6 +62,10 @@ public class AdminEdgeSiteController {
             if (form.redirectTarget() == null || form.redirectTarget().isBlank()) {
                 binding.rejectValue("redirectTarget", "validation.edge.site.redirect.required");
             }
+        } else if ("static".equals(form.siteType())) {
+            if (form.rootPath() == null || form.rootPath().isBlank()) {
+                binding.rejectValue("rootPath", "validation.edge.site.rootPath.required");
+            }
         }
         if (binding.hasErrors()) {
             model.addAttribute("mode", "create");
@@ -70,6 +74,7 @@ public class AdminEdgeSiteController {
         repo.save(EdgeSite.builder()
                 .domain(form.domain())
                 .siteType(form.siteType())
+                .rootPath(blankToNull(form.rootPath()))
                 .upstreamHost(blankToNull(form.upstreamHost()))
                 .upstreamPort(form.upstreamPort())
                 .bindAddress(blankToNull(form.bindAddress()))
@@ -93,7 +98,7 @@ public class AdminEdgeSiteController {
             return "redirect:/admin/edge/sites";
         }
         model.addAttribute("form", new EdgeSiteForm(
-                s.getDomain(), s.getSiteType(),
+                s.getDomain(), s.getSiteType(), s.getRootPath(),
                 s.getUpstreamHost(), s.getUpstreamPort(),
                 s.getBindAddress(),
                 s.getRedirectTarget(), s.getRedirectCode(),
@@ -128,6 +133,10 @@ public class AdminEdgeSiteController {
             if (form.redirectTarget() == null || form.redirectTarget().isBlank()) {
                 binding.rejectValue("redirectTarget", "validation.edge.site.redirect.required");
             }
+        } else if ("static".equals(form.siteType())) {
+            if (form.rootPath() == null || form.rootPath().isBlank()) {
+                binding.rejectValue("rootPath", "validation.edge.site.rootPath.required");
+            }
         }
         if (binding.hasErrors()) {
             model.addAttribute("mode", "edit");
@@ -135,8 +144,10 @@ public class AdminEdgeSiteController {
             return "admin/edge/edge-site-form";
         }
         repo.save(EdgeSite.builder()
+                .id(s.getId())
                 .domain(form.domain())
                 .siteType(form.siteType())
+                .rootPath(blankToNull(form.rootPath()))
                 .upstreamHost(blankToNull(form.upstreamHost()))
                 .upstreamPort(form.upstreamPort())
                 .bindAddress(blankToNull(form.bindAddress()))

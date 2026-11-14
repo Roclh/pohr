@@ -22,8 +22,16 @@
             <select id="siteType" th:field="*{siteType}">
                 <option value="proxy" th:text="#{admin.edge.site.type.proxy}">Reverse proxy</option>
                 <option value="redirect" th:text="#{admin.edge.site.type.redirect}">Redirect</option>
+                <option value="static" th:text="#{admin.edge.site.type.static}">Static files</option>
             </select>
             <p class="field-error" th:if="${#fields.hasErrors('siteType')}" th:errors="*{siteType}">err</p>
+        </div>
+
+        <div class="field" th:classappend="${#fields.hasErrors('rootPath')} ? 'has-error'">
+            <label for="rootPath" th:text="#{admin.edge.site.rootPath}">Root path</label>
+            <input type="text" id="rootPath" th:field="*{rootPath}" placeholder="/app/xray/site">
+            <p class="hint" th:text="#{admin.edge.site.rootPath.hint}"></p>
+            <p class="field-error" th:if="${#fields.hasErrors('rootPath')}" th:errors="*{rootPath}">err</p>
         </div>
 
         <div class="field" th:classappend="${#fields.hasErrors('bindAddress')} ? 'has-error'">

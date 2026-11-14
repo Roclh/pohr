@@ -21,6 +21,7 @@ import java.util.Comparator;
 public class EdgeService {
 
     private final EdgeConfigService cfgService;
+    private final EdgeSiteContentService siteContent;
     private final EdgeConfigRepository cfgRepo;
     private final EdgeRouteRepository routeRepo;
     private final EdgeSiteRepository siteRepo;
@@ -61,6 +62,7 @@ public class EdgeService {
      * При ошибке валидации — ничего не применяется, состояние процессов не меняется.
      */
     public synchronized void apply() {
+        siteContent.ensurePlaceholder();
         cfgService.materialize();
 
         // 1. Проверяем конфиги

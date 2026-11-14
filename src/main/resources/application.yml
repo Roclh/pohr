@@ -27,6 +27,18 @@ pohr:
     id: ${POHR_NODE_ID:local}
   xray:
     api-port: ${XRAY_API_PORT:10085}
+    # Ограничение Go-кучи Xray: без него warmed-up процесс занимает ~195 МБ RSS.
+    gomemlimit: ${XRAY_GOMEMLIMIT:160MiB}
+    gogc: ${XRAY_GOGC:50}
+  processes:
+    reaper:
+      # Периодически убивает xray/telemt, которые остались не под управлением
+      # менеджеров (неудачный старт, ручной запуск внутри контейнера, зависший
+      # `xray api`). Процессы хоста вне контейнера не видны — другой PID-namespace.
+      enabled: ${PROCESS_REAPER_ENABLED:true}
+      interval-ms: 300000
+      initial-delay-ms: 120000
+      min-age-seconds: 300
   traffic:
     enabled: ${TRAFFIC_ENABLED:true}
     interval-ms: ${TRAFFIC_INTERVAL_MS:60000}
@@ -53,6 +65,8 @@ pohr:
   edge:
     home: ${EDGE_HOME:/app/xray}      # тот же volume, что xray
     auto-start: ${EDGE_AUTO_START:true}
+    # Явный IP сервера для сверки A-записей SNI. Пусто — берётся из pohr.public-url.
+    server-ip: ${POHR_EDGE_SERVER_IP:}
   metrics:
     interval-ms: 60000
     initial-delay-ms: 15000

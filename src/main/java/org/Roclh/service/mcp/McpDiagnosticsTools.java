@@ -10,23 +10,35 @@ import org.Roclh.model.dto.MetricsSnapshot;
 import org.Roclh.model.dto.TrafficSummary;
 import org.Roclh.service.edge.CaddyProcessManager;
 import org.Roclh.service.edge.NginxProcessManager;
+import org.Roclh.service.metric.ContainerMetrics;
 import org.Roclh.service.metric.MetricsService;
 import org.Roclh.service.node.EuNodeService;
+import org.Roclh.service.process.OrphanProcessReaper;
+import org.Roclh.service.process.ProcessTable;
 import org.Roclh.service.telegram.TelemtProcessManager;
 import org.Roclh.service.traffic.ClientTrafficService;
 import org.Roclh.service.xray.XrayConfigService;
 import org.Roclh.service.xray.XrayInstaller;
 import org.Roclh.service.xray.XrayProcessManager;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.node.ArrayNode;
 import tools.jackson.databind.node.ObjectNode;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * Диагностика для агента: состояние процессов, хвосты логов, трафик клиентов,
- * EU-ноды. Всё read-only — эти инструменты ничего не меняют.
+ * EU-ноды, память. Всё read-only — эти инструменты ничего не меняют.
+ *
+ * <p>Метрики отдаются уже посчитанными: SQLite делает min/avg/max и свёртку по
+ * часам, наружу уходит несколько килобайт вместо тысяч точек. Иначе один такой
+ * вызов съедал бы весь контекст агента.</p>
  */
 @Slf4j
 @Component
@@ -42,6 +54,11 @@ public class McpDiagnosticsTools implements McpToolModule {
     private final EuNodeService euNodeService;
     private final ClientTrafficService clientTrafficService;
     private final XrayConfigService xrayConfigService;
+    private final ContainerMetrics containerMetrics;
+    private final OrphanProcessReaper processReaper;
+
+    @Value("${pohr.db-path:./data/pohr.db}")
+    private String dbPath;
 
     @Override
     public ArrayNode definitions() {
@@ -71,6 +88,20 @@ public class McpDiagnosticsTools implements McpToolModule {
                 """
                 {"type":"object","properties":{},"additionalProperties":false}
                 """));
+        tools.add(McpToolSupport.tool("memory_report",
+                "Память сейчас, без ssh: расклад cgroup (anon/file/slab), счётчики memory.events (упирались ли в лимит, были ли OOM-kill), топ процессов по RSS/anon/THP, мусорные процессы и статистика reaper'а, размер БД. Отвечает на вопрос «кто занимает память и есть ли реальный дефицит».",
+                """
+                {"type":"object","properties":{
+                  "top":{"type":"integer","description":"Сколько процессов показать, 1..30. По умолчанию 8"}
+                },"additionalProperties":false}
+                """));
+        tools.add(McpToolSupport.tool("metrics_stats",
+                "Статистика метрик за окно в уже посчитанном виде: min/avg/max по anon, занятой памяти, Xray, telemt и heap, доля точек у лимита, тренд и свёртка по часам/суткам. Заменяет выгрузку поминутных точек.",
+                """
+                {"type":"object","properties":{
+                  "hours":{"type":"integer","description":"Окно в часах, 1..168. По умолчанию 24"}
+                },"additionalProperties":false}
+                """));
         return tools;
     }
 
@@ -79,7 +110,9 @@ public class McpDiagnosticsTools implements McpToolModule {
         return toolName != null && (toolName.equals("server_status")
                 || toolName.equals("logs_tail")
                 || toolName.equals("traffic_overview")
-                || toolName.equals("nodes_list"));
+                || toolName.equals("nodes_list")
+                || toolName.equals("memory_report")
+                || toolName.equals("metrics_stats"));
     }
 
     @Override
@@ -90,6 +123,8 @@ public class McpDiagnosticsTools implements McpToolModule {
                 case "logs_tail" -> McpToolSupport.ok(logsTail(args));
                 case "traffic_overview" -> McpToolSupport.ok(trafficOverview(args));
                 case "nodes_list" -> McpToolSupport.ok(nodesList());
+                case "memory_report" -> McpToolSupport.ok(memoryReport(args));
+                case "metrics_stats" -> McpToolSupport.ok(metricsStats(args));
                 default -> McpToolSupport.fail("Неизвестный диагностический инструмент: " + toolName);
             };
         } catch (Exception e) {
@@ -117,6 +152,7 @@ public class McpDiagnosticsTools implements McpToolModule {
             metrics.put("ts", latest.ts());
             metrics.put("podCpuPct", latest.podCpuPct());
             metrics.put("podMemBytes", latest.podMemBytes());
+            metrics.put("podAnonBytes", latest.podAnonBytes());
             metrics.put("podMemLimitBytes", latest.podMemLimitBytes());
             metrics.put("xrayMemBytes", latest.xrayMemBytes());
             metrics.put("xrayCpuPct", latest.xrayCpuPct());
@@ -254,5 +290,200 @@ public class McpDiagnosticsTools implements McpToolModule {
         }
         out.put("count", arr.size());
         return out;
+    }
+
+    // =====================================================================
+    // memory_report
+    // =====================================================================
+
+    /**
+     * Снимок памяти без ssh: cgroup-расклад, memory.events, процессы, reaper, БД.
+     *
+     * <p>Главное отличие от {@code server_status}: здесь отдельно показан
+     * {@code anon} — то, что нельзя вытеснить. {@code memory.current} включает
+     * page cache, поэтому «480 из 480» само по себе ещё не дефицит.</p>
+     */
+    private ObjectNode memoryReport(ObjectNode args) {
+        int top = McpToolSupport.optInt(args, "top", 8, 1, 30);
+        ObjectNode out = McpToolSupport.JSON.createObjectNode();
+
+        long current = nz(containerMetrics.readCgroupMemoryBytes());
+        long limit = nz(containerMetrics.readCgroupMemoryLimitBytes());
+        Map<String, Long> stat = containerMetrics.readCgroupMemoryStat();
+        Map<String, Long> events = containerMetrics.readCgroupMemoryEvents();
+        long anon = nz(stat.get("anon"));
+        double usedPct = limit > 0 ? current * 100.0 / limit : 0;
+        double anonPct = limit > 0 ? anon * 100.0 / limit : 0;
+
+        ObjectNode cgroup = out.putObject("cgroup");
+        cgroup.put("currentMB", mb(current));
+        cgroup.put("anonMB", mb(anon));
+        cgroup.put("fileMB", mb(nz(stat.get("file"))));
+        cgroup.put("slabMB", mb(nz(stat.get("slab"))));
+        cgroup.put("limitMB", mb(limit));
+        cgroup.put("usedPctOfLimit", round(usedPct));
+        cgroup.put("anonPctOfLimit", round(anonPct));
+
+        ObjectNode ev = out.putObject("events");
+        ev.put("hitLimit", nz(events.get("max")));
+        ev.put("oom", nz(events.get("oom")));
+        ev.put("oomKill", nz(events.get("oom_kill")));
+
+        List<ProcessTable.Proc> processes = ProcessTable.snapshot(true);
+        ArrayNode arr = out.putArray("processes");
+        processes.stream()
+                .sorted(Comparator.comparingLong(ProcessTable.Proc::rssBytes).reversed())
+                .limit(top)
+                .forEach(p -> {
+                    ObjectNode node = arr.addObject();
+                    node.put("pid", p.pid());
+                    node.put("name", p.name());
+                    node.put("rssMB", mb(p.rssBytes()));
+                    node.put("anonMB", mb(p.anonBytes()));
+                    node.put("thpMB", mb(p.thpBytes()));
+                    node.put("threads", p.threads());
+                    node.put("ageMin", p.ageSeconds() < 0 ? -1 : p.ageSeconds() / 60);
+                });
+        out.put("processCount", processes.size());
+        out.put("strayManaged", strayManagedProcesses(processes));
+
+        OrphanProcessReaper.Stats reaper = processReaper.stats();
+        ObjectNode reaperNode = out.putObject("reaper");
+        reaperNode.put("enabled", reaper.enabled());
+        reaperNode.put("minAgeSeconds", reaper.minAgeSeconds());
+        reaperNode.put("killedTotal", reaper.killedTotal());
+        reaperNode.put("killedLastSweep", reaper.killedLastSweep());
+        McpToolSupport.putNullable(reaperNode, "lastSweepAt",
+                reaper.lastSweepAt() == null ? null : reaper.lastSweepAt().toString());
+
+        ObjectNode db = out.putObject("db");
+        db.put("mainMB", mb(fileSize(Path.of(dbPath))));
+        db.put("walMB", mb(fileSize(Path.of(dbPath + "-wal"))));
+
+        out.put("verdict", memoryVerdict(usedPct, anonPct, nz(events.get("oom_kill"))));
+        out.put("note", "memory.current включает page cache; реальное давление — anon. "
+                + "Видны только процессы своего PID-namespace.");
+        return out;
+    }
+
+    /** Сколько xray/telemt живёт не под управлением менеджеров — их заберёт reaper. */
+    private long strayManagedProcesses(List<ProcessTable.Proc> processes) {
+        Long xrayPid = xray.pid();
+        Long telemtPid = telemt.pid();
+        return processes.stream()
+                .filter(p -> "xray".equals(p.name()) || "telemt".equals(p.name()))
+                .filter(p -> xrayPid == null || p.pid() != xrayPid)
+                .filter(p -> telemtPid == null || p.pid() != telemtPid)
+                .count();
+    }
+
+    private static String memoryVerdict(double usedPct, double anonPct, long oomKill) {
+        if (oomKill > 0) {
+            return "OOM-kill был " + oomKill + " раз: контейнер убивал процессы, "
+                    + "нужно снижать anon (Xray) или поднимать лимит.";
+        }
+        if (anonPct >= 85) {
+            return "anon " + round(anonPct) + " % от лимита — реальное давление близко к пределу.";
+        }
+        if (usedPct >= 90) {
+            return "Лимит упирается за счёт page cache (anon " + round(anonPct)
+                    + " %) — это reclaim, а не дефицит памяти.";
+        }
+        return "Запас по anon " + round(100 - anonPct) + " % — давление умеренное.";
+    }
+
+    // =====================================================================
+    // metrics_stats
+    // =====================================================================
+
+    private ObjectNode metricsStats(ObjectNode args) {
+        int hours = McpToolSupport.optInt(args, "hours", 24, 1, 168);
+        MetricsService.Stats stats = metricsService.stats(hours);
+
+        ObjectNode out = McpToolSupport.JSON.createObjectNode();
+        out.put("windowHours", stats.hours());
+        out.put("samples", stats.samples());
+        out.put("limitMB", stats.limitMb());
+
+        ObjectNode now = out.putObject("now");
+        now.put("anonMB", stats.nowAnon());
+        now.put("usedMB", stats.nowUsed());
+
+        ObjectNode ranges = out.putObject("ranges");
+        ranges.set("anonMB", rangeNode(stats.anon()));
+        ranges.set("usedMB", rangeNode(stats.used()));
+        ranges.set("xrayMB", rangeNode(stats.xray()));
+        ranges.set("telemtMB", rangeNode(stats.telemt()));
+        ranges.set("heapMB", rangeNode(stats.heap()));
+        ranges.set("cpuPct", rangeNode(stats.cpuPct()));
+
+        ObjectNode over = out.putObject("overLimit");
+        over.put("usedAt95PctSamples", stats.samplesOverLimit());
+        over.put("anonAt95PctSamples", stats.samplesAnonOverLimit());
+        over.put("usedAt95PctSharePct", stats.samples() == 0 ? 0
+                : round(stats.samplesOverLimit() * 100.0 / stats.samples()));
+
+        ObjectNode trend = out.putObject("trend");
+        trend.put("anonDeltaMB", stats.anonTrend());
+        trend.put("how", "avg anon первой половины окна → второй");
+
+        ArrayNode buckets = out.putArray("buckets");
+        for (MetricsService.MetricBucket bucket : stats.buckets()) {
+            ObjectNode node = buckets.addObject();
+            node.put("t", bucket.key());
+            node.put("n", bucket.samples());
+            node.put("anonAvgMB", bucket.anonAvg());
+            node.put("anonMaxMB", bucket.anonMax());
+            node.put("usedAvgMB", bucket.usedAvg());
+            node.put("usedMaxMB", bucket.usedMax());
+            node.put("xrayAvgMB", bucket.xrayAvg());
+            node.put("xrayMaxMB", bucket.xrayMax());
+            node.put("heapAvgMB", bucket.heapAvg());
+        }
+
+        out.put("verdict", trendVerdict(stats));
+        out.put("note", "buckets: час при hours<=48, иначе сутки. anon не включает page cache.");
+        return out;
+    }
+
+    private static ObjectNode rangeNode(MetricsService.MetricRange range) {
+        ObjectNode node = McpToolSupport.JSON.createObjectNode();
+        node.put("min", range.min());
+        node.put("avg", range.avg());
+        node.put("max", range.max());
+        return node;
+    }
+
+    private static String trendVerdict(MetricsService.Stats stats) {
+        if (stats.samplesAnonOverLimit() > 0) {
+            return "Были точки, где anon ≥ 95 % лимита — дефицит реальный.";
+        }
+        if (stats.anonTrend() > 10) {
+            return "anon растёт: +" + stats.anonTrend() + " МБ за половину окна — похоже на утечку.";
+        }
+        if (stats.anonTrend() < -10) {
+            return "anon снижается: " + stats.anonTrend() + " МБ за половину окна.";
+        }
+        return "anon стабилен (тренд " + stats.anonTrend() + " МБ за половину окна).";
+    }
+
+    private static long fileSize(Path path) {
+        try {
+            return Files.size(path);
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
+    private static long nz(Long value) {
+        return value == null ? 0 : value;
+    }
+
+    private static double mb(long bytes) {
+        return round(bytes / 1048576.0);
+    }
+
+    private static double round(double value) {
+        return Math.round(value * 10.0) / 10.0;
     }
 }

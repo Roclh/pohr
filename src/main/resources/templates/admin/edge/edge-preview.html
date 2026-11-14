@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/layout :: head(#{admin.edge.preview.title})}"></head>
+<body>
+<header th:replace="~{fragments/layout :: header}"></header>
+<nav th:replace="~{fragments/layout :: crumbs('admin.edge.preview.title', 'admin.edge.title', '/admin/edge')}"></nav>
+
+<main class="container">
+    <h1 th:text="#{admin.edge.preview.title}">Edge config preview</h1>
+    <p class="muted" th:text="#{admin.edge.preview.text}"></p>
+
+    <div th:if="${preview.same()}" class="alert success" th:text="#{admin.edge.preview.same}"></div>
+
+    <div class="toolbar">
+        <a class="button" th:href="@{/admin/edge}" th:text="#{admin.edge.preview.back}">Back to edge</a>
+    </div>
+
+    <section class="card" th:each="entry : ${previewList}">
+        <h2>
+            <code th:text="${entry.name}">nginx.conf</code>
+            <span class="badge" th:classappend="${entry.same} ? 'enabled' : 'stopped'"
+                  th:text="${entry.same ? #messages.msg('admin.edge.configs.same') : #messages.msg('admin.edge.configs.diff')}">diff</span>
+        </h2>
+        <p class="muted edge-config-meta">
+            <span th:text="#{admin.edge.configs.path}">Path:</span>
+            <code th:text="${entry.path}">/app/xray/edge/nginx.conf</code><br>
+            <span th:text="#{admin.edge.configs.hash}">SHA-256 (generated):</span>
+            <code th:text="${entry.generatedHash}">hash</code>
+            <span th:if="${entry.diskHash != null}">
+                · <span th:text="#{admin.edge.configs.diskHash}">on disk:</span>
+                <code th:text="${entry.diskHash}">hash</code>
+            </span>
+        </p>
+        <pre class="diff-view" th:if="${entry.name == 'nginx.conf'}"
+             th:text="${preview.nginxDiff()}">no diff</pre>
+        <pre class="diff-view" th:if="${entry.name == 'Caddyfile'}"
+             th:text="${preview.caddyDiff()}">no diff</pre>
+    </section>
+</main>
+</body>
+</html>

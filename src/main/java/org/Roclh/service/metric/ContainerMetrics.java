@@ -5,6 +5,8 @@ import org.springframework.stereotype.Component;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.LinkedHashMap;
+import java.util.Map;
 
 @Slf4j
 @Component
@@ -24,6 +26,57 @@ public class ContainerMetrics {
     public Long readCgroupMemoryBytes() {
         return readLong("/sys/fs/cgroup/memory.current",
                 "/sys/fs/cgroup/memory/memory.usage_in_bytes");
+    }
+
+    /**
+     * Реальное давление на память: поле {@code anon} из memory.stat.
+     *
+     * <p>{@code memory.current} включает page cache (файловый кэш БД, страницы
+     * бинарников), который ядро вытесняет под давлением. Поэтому «занято 480 из
+     * 480» на графике не значит, что процессам не хватает памяти: anon — это
+     * единственная часть, которую нельзя освободить без свопа. Если anon
+     * далёк от лимита, а current — нет, это не утечка, а кэш.</p>
+     */
+    public Long readCgroupAnonBytes() {
+        return readCgroupMemoryStat().get("anon");
+    }
+
+    /** memory.stat как map (anon, file, slab, shmem, ...). Пустая map, если файла нет. */
+    public Map<String, Long> readCgroupMemoryStat() {
+        return readKeyValueFile("/sys/fs/cgroup/memory.stat",
+                "/sys/fs/cgroup/memory/memory.stat");
+    }
+
+    /**
+     * memory.events: сколько раз cgroup упиралась в лимит и были ли реальные
+     * OOM-kill. {@code max > 0} при {@code oomKill = 0} — это reclaim, а не
+     * падение процессов.
+     */
+    public Map<String, Long> readCgroupMemoryEvents() {
+        return readKeyValueFile("/sys/fs/cgroup/memory.events",
+                "/sys/fs/cgroup/memory/memory.oom_control");
+    }
+
+    private Map<String, Long> readKeyValueFile(String... paths) {
+        Map<String, Long> result = new LinkedHashMap<>();
+        for (String p : paths) {
+            try {
+                String content = Files.readString(Path.of(p));
+                for (String line : content.split("\\R")) {
+                    String[] parts = line.trim().split("\\s+");
+                    if (parts.length != 2) continue;
+                    try {
+                        result.put(parts[0], Long.parseLong(parts[1]));
+                    } catch (NumberFormatException ignored) {
+                        // v1 oom_control содержит "oom_kill_disable 0" и текст — пропускаем
+                    }
+                }
+                if (!result.isEmpty()) return result;
+            } catch (Exception ignored) {
+                // файла нет (не cgroup v2) — пробуем следующий путь
+            }
+        }
+        return result;
     }
 
     public Long readCgroupMemoryLimitBytes() {

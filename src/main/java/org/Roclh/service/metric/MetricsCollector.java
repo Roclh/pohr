@@ -114,11 +114,17 @@ public class MetricsCollector {
         Long podMem = containerMetrics.isInsideContainer()
                 ? containerMetrics.readCgroupMemoryBytes()
                 : containerMetrics.readCurrentProcessRssBytes();
+        // anon — единственная часть cgroup-памяти, которую нельзя вытеснить.
+        // На неё смотрим в диагностике и на графике «давление».
+        Long podAnon = containerMetrics.isInsideContainer()
+                ? containerMetrics.readCgroupAnonBytes()
+                : null;
 
         return MetricSample.builder()
                 .ts(now.toString())
                 .podCpuPct(podCpuPct)
                 .podMemBytes(podMem)
+                .podAnonBytes(podAnon)
                 .podMemLimitBytes(containerMetrics.readCgroupMemoryLimitBytes())
                 .jvmHeapBytes(heap)
                 .jvmThreads(threads)

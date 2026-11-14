@@ -176,12 +176,15 @@ public class EdgeConfigService {
                         ? "permanent" : s.getRedirectCode();
                 sb.append("    redir ").append(s.getRedirectTarget())
                         .append(' ').append(code).append('\n');
+            } else if ("static".equals(s.getSiteType())) {
+                appendTls(sb, s);
+                sb.append("    encode gzip\n");
+                sb.append("    root * ").append(rootPath(s)).append('\n');
+                sb.append("    file_server\n");
             } else {
-                switch (s.getTlsMode()) {
-                    case "acme" -> sb.append("    encode gzip\n");
-                    case "internal" -> sb.append("    tls internal\n");
-                    case "off" -> sb.append("    tls off\n");
-                    default -> { /* noop */ }
+                appendTls(sb, s);
+                if ("acme".equals(s.getTlsMode())) {
+                    sb.append("    encode gzip\n");
                 }
                 sb.append("    reverse_proxy ")
                         .append(s.getUpstreamHost()).append(':').append(s.getUpstreamPort())
@@ -194,6 +197,14 @@ public class EdgeConfigService {
                 }
             }
             sb.append("}\n\n");
+
+            // Caddy's automatic redirect is 308, а для сайта нужен 301.
+            // HTTP-блок без bind: порт 80 обязан быть доступен снаружи для ACME HTTP-01.
+            if (httpsEnabled(c) && !"off".equals(s.getTlsMode())) {
+                sb.append("http://").append(s.getDomain()).append(" {\n");
+                sb.append("    redir https://{host}{uri} 301\n");
+                sb.append("}\n\n");
+            }
         }
         return sb.toString();
     }
@@ -213,6 +224,29 @@ public class EdgeConfigService {
     // =====================================================================
     // Helpers
     // =====================================================================
+
+    /** acme — авто-сертификат Caddy, отдельная директива не нужна. */
+    private static void appendTls(StringBuilder sb, EdgeSite site) {
+        switch (site.getTlsMode()) {
+            case "internal" -> sb.append("    tls internal\n");
+            case "off" -> sb.append("    tls off\n");
+            default -> { /* acme: automatic HTTPS */ }
+        }
+    }
+
+    /** ACME/HTTPS вообще включён (иначе http://-блоки бессмысленны). */
+    private static boolean httpsEnabled(EdgeConfig config) {
+        String mode = config.getAutoHttps();
+        return !"off".equals(mode) && !"disable_certs".equals(mode);
+    }
+
+    /** root_path статического сайта; пусто — общий placeholder в ${pohr.edge.home}/site. */
+    private String rootPath(EdgeSite site) {
+        String path = site.getRootPath();
+        return (path == null || path.isBlank())
+                ? Path.of(edgeHome, "site").toString().replace('\\', '/')
+                : path;
+    }
 
     /** "127.0.0.1:8443" -> "u_127_0_0_1_8443" — стабильное имя upstream-блока. */
     static String upstreamName(String host, int port) {

@@ -9,6 +9,7 @@ public record EdgeSiteDto(
         UUID id,
         String domain,
         String siteType,
+        String rootPath,
         String upstreamHost,
         Integer upstreamPort,
         String bindAddress,
@@ -22,7 +23,7 @@ public record EdgeSiteDto(
 ) {
     public static EdgeSiteDto from(EdgeSite s) {
         return new EdgeSiteDto(
-                s.getId(), s.getDomain(), s.getSiteType(),
+                s.getId(), s.getDomain(), s.getSiteType(), s.getRootPath(),
                 s.getUpstreamHost(), s.getUpstreamPort(), s.getBindAddress(),
                 s.getRedirectTarget(), s.getRedirectCode(),
                 s.getTlsMode(), s.getAcmeEmail(), s.getExtraDirectives(),

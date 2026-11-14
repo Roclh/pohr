@@ -1,11 +1,18 @@
 package org.Roclh.service.mcp;
 
 import org.Roclh.repository.UserRepository;
+import org.Roclh.repository.edge.EdgeRouteRepository;
+import org.Roclh.repository.edge.EdgeSiteRepository;
 import org.Roclh.repository.script.ScriptVersionRepository;
 import org.Roclh.service.edge.CaddyProcessManager;
+import org.Roclh.service.edge.EdgeConfigService;
+import org.Roclh.service.edge.EdgeService;
+import org.Roclh.service.edge.EdgeVisibilityService;
 import org.Roclh.service.edge.NginxProcessManager;
+import org.Roclh.service.metric.ContainerMetrics;
 import org.Roclh.service.metric.MetricsService;
 import org.Roclh.service.node.EuNodeService;
+import org.Roclh.service.process.OrphanProcessReaper;
 import org.Roclh.service.script.ScriptCatalogService;
 import org.Roclh.service.script.ScriptErrorReportService;
 import org.Roclh.service.script.ScriptVersionService;
@@ -35,7 +42,7 @@ import static org.mockito.Mockito.mock;
 class McpToolRegistryTest {
 
     @Test
-    @DisplayName("tools/list объединяет скрипты, Xray, отчёты и диагностику")
+    @DisplayName("tools/list объединяет скрипты, Xray, отчёты, диагностику и edge")
     void registersAllModules() {
         McpXrayConfigTools xrayTools = new McpXrayConfigTools(
                 mock(XrayConfigService.class),
@@ -58,14 +65,25 @@ class McpToolRegistryTest {
                 mock(MetricsService.class),
                 mock(EuNodeService.class),
                 mock(ClientTrafficService.class),
-                mock(XrayConfigService.class));
+                mock(XrayConfigService.class),
+                mock(ContainerMetrics.class),
+                mock(OrphanProcessReaper.class));
+
+        McpEdgeTools edgeTools = new McpEdgeTools(
+                mock(EdgeConfigService.class),
+                mock(EdgeService.class),
+                mock(EdgeVisibilityService.class),
+                mock(NginxProcessManager.class),
+                mock(CaddyProcessManager.class),
+                mock(EdgeRouteRepository.class),
+                mock(EdgeSiteRepository.class));
 
         McpToolService service = new McpToolService(
                 mock(ScriptCatalogService.class),
                 mock(ScriptVersionService.class),
                 mock(ScriptVersionRepository.class),
                 mock(McpInstructionProvider.class),
-                List.of(xrayTools, reportTools, diagnostics));
+                List.of(xrayTools, reportTools, diagnostics, edgeTools));
 
         ArrayNode tools = service.toolDefinitions();
         Set<String> names = new HashSet<>();
@@ -75,7 +93,7 @@ class McpToolRegistryTest {
             assertThat(tool.get("inputSchema").get("type").asText()).isEqualTo("object");
         }
 
-        assertThat(tools.size()).isEqualTo(31);
+        assertThat(tools.size()).isEqualTo(36);
         assertThat(names).contains(
                 "scripts_list",
                 "xray_configs_list",
@@ -93,6 +111,11 @@ class McpToolRegistryTest {
                 "server_status",
                 "logs_tail",
                 "traffic_overview",
-                "nodes_list");
+                "nodes_list",
+                "memory_report",
+                "metrics_stats",
+                "edge_status",
+                "edge_config_read",
+                "edge_preview");
     }
 }

@@ -37,6 +37,7 @@ public class NativeHints {
             hints.resources().registerPattern("i18n/messages*");
             hints.resources().registerPattern("scripts/**");
             hints.resources().registerPattern("mcp/**");
+            hints.resources().registerPattern("site/**");
             hints.resources().registerPattern("templates/**");       // ← NEW
             hints.resources().registerPattern("static/**");          // ← NEW
             String[] thymeleafExpressionClasses = {
@@ -151,6 +152,12 @@ public class NativeHints {
             hints.reflection().registerType(org.Roclh.model.dto.edge.EdgeRouteDto.class, MemberCategory.values());
             hints.reflection().registerType(org.Roclh.model.dto.edge.EdgeSiteForm.class, MemberCategory.values());
             hints.reflection().registerType(org.Roclh.model.dto.edge.EdgeSiteDto.class, MemberCategory.values());
+            hints.reflection().registerType(org.Roclh.model.dto.edge.EdgeMapDto.class, MemberCategory.values());
+            hints.reflection().registerType(org.Roclh.model.dto.edge.EdgeSniRowDto.class, MemberCategory.values());
+            hints.reflection().registerType(org.Roclh.model.dto.edge.EdgeWarningDto.class, MemberCategory.values());
+            hints.reflection().registerType(org.Roclh.model.dto.edge.EdgeConfigFileDto.class, MemberCategory.values());
+            hints.reflection().registerType(org.Roclh.model.dto.edge.EdgeConfigFilesDto.class, MemberCategory.values());
+            hints.reflection().registerType(org.Roclh.model.dto.edge.EdgePreviewDto.class, MemberCategory.values());
             hints.reflection().registerType(
                     org.Roclh.controller.admin.AdminScriptController.Row.class,
                     MemberCategory.values());

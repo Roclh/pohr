@@ -39,6 +39,8 @@
                       th:text="${s.upstreamHost()} + ':' + ${s.upstreamPort()}">127.0.0.1:8080</code>
                 <code th:if="${s.siteType() == 'redirect'}"
                       th:text="'→ ' + ${s.redirectTarget()}">→ https://...</code>
+                <code th:if="${s.siteType() == 'static'}"
+                      th:text="${s.rootPath()} ?: '—'">/app/xray/site</code>
             </td>
             <td data-label="Bind" th:text="${s.bindAddress()} ?: '—'">127.0.0.1</td>
             <td data-label="TLS">

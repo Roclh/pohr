@@ -27,6 +27,12 @@ public class MetricSample {
     private Double podCpuPct;
     @Column(name = "pod_mem_bytes", columnDefinition = "INTEGER")
     private Long podMemBytes;
+    /**
+     * Реальное давление: {@code anon} из memory.stat без page cache.
+     * См. {@code ContainerMetrics#readCgroupAnonBytes()}.
+     */
+    @Column(name = "pod_anon_bytes", columnDefinition = "INTEGER")
+    private Long podAnonBytes;
     @Column(name = "pod_mem_limit_bytes", columnDefinition = "INTEGER")
     private Long podMemLimitBytes;
     @Column(name = "jvm_heap_bytes", columnDefinition = "INTEGER")

@@ -1448,12 +1448,6 @@ input, select, textarea, button {
     color: #4b5563;
 }
 
-.chart-legend-item {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-}
-
 .chart-legend-swatch {
     display: inline-block;
     width: 18px;
@@ -1470,6 +1464,11 @@ input, select, textarea, button {
 
 .chart-legend-swatch.chart-line-xray {
     border-top-color: #d97706;
+    border-top-style: dashed;
+}
+
+.chart-legend-swatch.chart-line-cache {
+    border-top-color: #6b7280;
     border-top-style: dashed;
 }
 
@@ -1531,6 +1530,7 @@ input, select, textarea, button {
 
 .chart-line,
 .chart-line-pod,
+.chart-line-cache,
 .chart-line-xray,
 .chart-line-telemt,
 .chart-line-jvm {
@@ -1554,6 +1554,11 @@ input, select, textarea, button {
     stroke: #1d4ed8;
 }
 
+/* Вся cgroup-память вместе с page cache: серая, вспомогательная. */
+.chart-line-cache {
+    stroke: #6b7280;
+}
+
 .chart-line-xray {
     stroke: #d97706;
 }
@@ -1564,6 +1569,83 @@ input, select, textarea, button {
 
 .chart-line-jvm {
     stroke: #1d4ed8;
+}
+
+/* ===== Highlight: клик по подписи в легенде выделяет линию ===== */
+.chart-legend-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 2px 6px 2px 12px;
+    font: inherit;
+    color: inherit;
+    background: none;
+    border: 0;
+    border-radius: 6px;
+    cursor: pointer;
+    user-select: none;
+    transition: background-color .12s ease, opacity .12s ease;
+}
+
+/* Цветной штрих серии — те же цвета, что у линий на графике. */
+.chart-legend-item.chart-line-pod {
+    border-top: 0;
+    background-image: linear-gradient(#1d4ed8, #1d4ed8);
+    background-repeat: no-repeat;
+    background-position: 4px 50%;
+    background-size: 14px 3px;
+}
+
+.chart-legend-item.chart-line-xray {
+    border-top: 0;
+    background-image: linear-gradient(90deg, #d97706 60%, transparent 60%);
+    background-repeat: no-repeat;
+    background-position: 4px 50%;
+    background-size: 14px 3px;
+}
+
+.chart-legend-item.chart-line-cache {
+    border-top: 0;
+    background-image: linear-gradient(90deg, #6b7280 60%, transparent 60%);
+    background-repeat: no-repeat;
+    background-position: 4px 50%;
+    background-size: 14px 3px;
+}
+
+.chart-legend-item.chart-line-telemt {
+    border-top: 0;
+    background-image: linear-gradient(90deg, #7c3aed 60%, transparent 60%);
+    background-repeat: no-repeat;
+    background-position: 4px 50%;
+    background-size: 14px 3px;
+}
+
+.chart-legend-item.chart-line-jvm {
+    border-top: 0;
+    background-image: linear-gradient(#1d4ed8, #1d4ed8);
+    background-repeat: no-repeat;
+    background-position: 4px 50%;
+    background-size: 14px 3px;
+}
+
+.chart-legend-item:hover {
+    background-color: #f3f4f6;
+}
+
+.chart-legend-item:focus-visible {
+    outline: 2px solid #1d4ed8;
+    outline-offset: 1px;
+}
+
+/* Приглушённые серии: и линия на графике, и подпись в легенде.
+   У линий класс вида chart-line-pod / chart-line-xray, а не chart-line. */
+.chart-legend-item.chart-legend-dimmed,
+path[class*="chart-line-"].chart-line-dimmed {
+    opacity: .22;
+}
+
+.chart-legend-item.chart-legend-dimmed:hover {
+    opacity: .6;
 }
 
 
@@ -1870,4 +1952,90 @@ button.secondary:hover,
     color: #fff;
     text-decoration: none;
     outline: none;
+}
+
+/* ===== Edge visibility (admin) ===== */
+.edge-map-meta {
+    margin: .2rem 0 .8rem;
+    color: #4b5563;
+    font-size: .9rem;
+}
+.edge-addresses {
+    font-size: .78rem;
+    margin-top: 2px;
+    word-break: break-all;
+}
+.edge-yes {
+    color: #15803d;
+    font-weight: 600;
+}
+.edge-no {
+    color: #b91c1c;
+    font-weight: 600;
+}
+.edge-type {
+    background: #e5e7eb;
+    color: #374151;
+}
+.edge-type-reality { background: #e0eaff; color: #1d4ed8; }
+.edge-type-telemt { background: #ede9fe; color: #6d28d9; }
+.edge-type-caddy { background: #dcfce7; color: #166534; }
+.edge-type-fallback { background: #fef3c7; color: #92400e; }
+.fallback-row td {
+    background: #fffbeb;
+}
+.edge-warnings {
+    border: 1px solid #fde68a;
+    background: #fffbeb;
+    border-radius: 8px;
+    padding: .7rem 1rem;
+    margin: 0 0 1rem;
+}
+.edge-warnings h3 {
+    margin: 0 0 .4rem;
+    font-size: .95rem;
+}
+.edge-warnings ul,
+.edge-warning-list {
+    margin: 0;
+    padding-left: 1.1rem;
+    font-size: .86rem;
+}
+.edge-warning-list {
+    padding-left: 1rem;
+}
+.warn-warn { color: #92400e; }
+.warn-info { color: #1d4ed8; }
+.edge-config-block {
+    border-top: 1px solid #e5e7eb;
+    padding-top: .9rem;
+    margin-top: .9rem;
+}
+.edge-config-block:first-of-type {
+    border-top: 0;
+    margin-top: 0;
+    padding-top: 0;
+}
+.edge-config-meta {
+    font-size: .82rem;
+    word-break: break-all;
+}
+.config-view,
+.diff-view {
+    max-height: 420px;
+    overflow: auto;
+    background: #0f172a;
+    color: #e2e8f0;
+    border-radius: 8px;
+    padding: .8rem 1rem;
+    font-family: "SF Mono", Consolas, monospace;
+    font-size: .8rem;
+    line-height: 1.45;
+    white-space: pre;
+}
+.diff-view {
+    background: #111827;
+}
+.edge-config-toolbar {
+    margin: .5rem 0;
 }

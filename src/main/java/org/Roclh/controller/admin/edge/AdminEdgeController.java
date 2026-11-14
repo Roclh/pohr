@@ -1,11 +1,17 @@
 package org.Roclh.controller.admin.edge;
 
 import lombok.RequiredArgsConstructor;
+import org.Roclh.model.dto.edge.EdgeConfigFileDto;
+import org.Roclh.model.dto.edge.EdgeConfigFilesDto;
 import org.Roclh.model.dto.edge.EdgeConfigForm;
+import org.Roclh.service.edge.CaddyProcessManager;
 import org.Roclh.service.edge.EdgeConfigService;
 import org.Roclh.service.edge.EdgeService;
+import org.Roclh.service.edge.EdgeVisibilityService;
 import org.Roclh.service.edge.NginxProcessManager;
-import org.Roclh.service.edge.CaddyProcessManager;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
@@ -13,6 +19,7 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
 import jakarta.validation.Valid;
+import java.nio.charset.StandardCharsets;
 
 @Controller
 @RequestMapping("/admin/edge")
@@ -21,6 +28,7 @@ public class AdminEdgeController {
 
     private final EdgeService edgeService;
     private final EdgeConfigService cfgService;
+    private final EdgeVisibilityService visibility;
     private final NginxProcessManager nginx;
     private final CaddyProcessManager caddy;
 
@@ -29,8 +37,43 @@ public class AdminEdgeController {
         model.addAttribute("status", edgeService.status());
         model.addAttribute("nginxLogs", nginx.recentLogs(200));
         model.addAttribute("caddyLogs", caddy.recentLogs(200));
+        model.addAttribute("edgeMap", visibility.buildMap());
+        EdgeConfigFilesDto configs = visibility.configFiles();
+        model.addAttribute("configs", configs);
+        model.addAttribute("configList", java.util.List.of(configs.nginx(), configs.caddy()));
         model.addAttribute("emptyFilterOptions", java.util.List.of());
         return "admin/edge/edge";
+    }
+
+    /** Сгенерированные конфиги только на чтение: download=1 отдаёт вложением. */
+    @GetMapping("/config/nginx")
+    public ResponseEntity<String> nginxConfig(@RequestParam(defaultValue = "false") boolean download) {
+        return configResponse(visibility.configFiles().nginx(), "nginx.conf", download);
+    }
+
+    @GetMapping("/config/caddy")
+    public ResponseEntity<String> caddyConfig(@RequestParam(defaultValue = "false") boolean download) {
+        return configResponse(visibility.configFiles().caddy(), "Caddyfile", download);
+    }
+
+    @GetMapping("/preview")
+    public String preview(Model model) {
+        var preview = visibility.preview();
+        model.addAttribute("preview", preview);
+        model.addAttribute("previewList", java.util.List.of(preview.nginx(), preview.caddy()));
+        return "admin/edge/edge-preview";
+    }
+
+    private static ResponseEntity<String> configResponse(EdgeConfigFileDto file,
+                                                         String filename,
+                                                         boolean download) {
+        HttpHeaders headers = new HttpHeaders();
+        headers.setContentType(new MediaType(MediaType.TEXT_PLAIN, StandardCharsets.UTF_8));
+        headers.set(HttpHeaders.CONTENT_DISPOSITION,
+                (download ? "attachment" : "inline") + "; filename=\"" + filename + "\"");
+        headers.set("X-Content-Sha256", file.generatedHash());
+        headers.setCacheControl("no-store");
+        return ResponseEntity.ok().headers(headers).body(file.generatedText());
     }
 
     @GetMapping("/config")

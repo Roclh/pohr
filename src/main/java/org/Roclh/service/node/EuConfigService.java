@@ -23,10 +23,14 @@ public class EuConfigService {
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final TelegramProxyConfigRepository telegramProxyConfigRepository;
 
-    @Value("${xray.reality.dest:www.microsoft.com:443}")
+    /**
+     * Т06: EU-плечо больше не маскируется под чужой домен. По умолчанию —
+     * свой SNI и локальный Caddy-сайт; профиль узла (Т03) важнее.
+     */
+    @Value("${pohr.eu-nodes.reality.target:127.0.0.1:443}")
     private String defaultDest;
 
-    @Value("${xray.reality.server-names:www.microsoft.com}")
+    @Value("${pohr.eu-nodes.reality.sni:eu.pohr-roclh.xyz}")
     private String defaultServerNamesCsv;
 
     @Value("${pohr.eu-nodes.tunnel-socks-port:10808}")
@@ -128,7 +132,7 @@ public class EuConfigService {
         reality.put("serverName", defaultSni());
         reality.put("publicKey", node.getRealityPublicKey());
         reality.put("shortId", node.getRealityShortId());
-        reality.put("fingerprint", "chrome");
+        reality.put("fingerprint", "firefox");
 
         return ob;
     }

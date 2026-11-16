@@ -35,10 +35,16 @@ public class XrayConfigService {
     @Value("${xray.server.public-port:443}")
     private int publicPort;
 
-    @Value("${xray.reality.dest:www.microsoft.com:443}")
+    /**
+     * Дефолтный REALITY-профиль RU-узла (Т06): свой сайт на локальном Caddy и
+     * своё имя с валидным сертификатом. Значения применяются только к новым
+     * автоматически сгенерированным конфигам; живой конфиг меняется через
+     * {@code xray_config_update} + активацию.
+     */
+    @Value("${xray.reality.dest:127.0.0.1:8444}")
     private String defaultDest;
 
-    @Value("${xray.reality.server-names:www.microsoft.com}")
+    @Value("${xray.reality.server-names:edge.pohr-roclh.xyz}")
     private String defaultServerNamesCsv;
 
     // --- Чтение ---------------------------------------------------------------

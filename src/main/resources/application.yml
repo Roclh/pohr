@@ -60,6 +60,11 @@ pohr:
     tunnel-check-timeout-seconds: 15
     tunnel-check-failures-threshold: 3
     tunnel-check-url: https://api.ipify.org
+    # Т06: профиль EU-inbound по умолчанию — своё имя и локальный Caddy-сайт.
+    # Профиль конкретного узла (Т03) всегда перекрывает эти значения.
+    reality:
+      sni: ${EU_REALITY_SNI:eu.pohr-roclh.xyz}
+      target: ${EU_REALITY_TARGET:127.0.0.1:443}
   invites:
     cleanup-interval: 600000
   edge:
@@ -84,9 +89,12 @@ xray:
   server:
     host: ${XRAY_HOST:127.0.0.1}
     public-port: ${XRAY_PUBLIC_PORT:443}
+  # Т06: REALITY маскируется под свой сайт и своё имя, а не под чужой домен.
+  # Дефолты применяются только к вновь сгенерированным конфигам; живой конфиг
+  # на узле меняется отдельно (xray_config_update → activate → apply).
   reality:
-    dest: ${XRAY_REALITY_DEST:www.microsoft.com:443}
-    server-names: ${XRAY_REALITY_SNI:www.microsoft.com}
+    dest: ${XRAY_REALITY_DEST:127.0.0.1:8444}
+    server-names: ${XRAY_REALITY_SNI:edge.pohr-roclh.xyz}
 
 server:
   port: 8080

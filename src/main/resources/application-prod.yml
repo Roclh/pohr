@@ -8,9 +8,11 @@ xray:
   server:
     host: ${XRAY_HOST:}
     public-port: ${XRAY_PUBLIC_PORT:443}
+  # Т06: свой сайт и своё имя вместо чужого домена. Живой конфиг на узле
+  # меняется через xray_config_update → activate → apply (рестарт Xray).
   reality:
-    dest: ${XRAY_REALITY_DEST:www.microsoft.com:443}
-    server-names: ${XRAY_REALITY_SNI:www.microsoft.com}
+    dest: ${XRAY_REALITY_DEST:127.0.0.1:8444}
+    server-names: ${XRAY_REALITY_SNI:edge.pohr-roclh.xyz}
   start:
     auto: ${XRAY_AUTO_START:true}
 

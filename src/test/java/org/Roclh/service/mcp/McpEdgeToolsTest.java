@@ -2,8 +2,11 @@ package org.Roclh.service.mcp;
 
 import org.Roclh.model.dto.edge.EdgeConfigFileDto;
 import org.Roclh.model.dto.edge.EdgeConfigFilesDto;
+import org.Roclh.model.dto.edge.EdgeMapDto;
 import org.Roclh.model.dto.edge.EdgePreviewDto;
+import org.Roclh.model.dto.edge.EdgeSniRowDto;
 import org.Roclh.model.dto.edge.EdgeStatusDto;
+import org.Roclh.model.dto.edge.EdgeWarningDto;
 import org.Roclh.model.edge.EdgeConfig;
 import org.Roclh.model.edge.EdgeRoute;
 import org.Roclh.model.edge.EdgeSite;
@@ -64,6 +67,9 @@ class McpEdgeToolsTest {
 
         EdgeConfigFilesDto files = files();
         when(visibility.configFiles()).thenReturn(files);
+        when(visibility.buildMap()).thenReturn(map());
+        when(visibility.panelUrl()).thenReturn("https://panel.pohr-roclh.xyz");
+        when(visibility.panelHost()).thenReturn("panel.pohr-roclh.xyz");
         when(routeRepo.findAllByOrderBySortOrderAscSniAsc()).thenReturn(List.of(route()));
         when(siteRepo.findAllByOrderByDomainAsc()).thenReturn(List.of(site()));
         when(visibility.routeType(org.mockito.ArgumentMatchers.any(EdgeRoute.class)))
@@ -102,6 +108,15 @@ class McpEdgeToolsTest {
         assertThat(payload.get("configs").get("nginx").get("generatedSha256").asText())
                 .isEqualTo(EdgeVisibilityService.sha256("stream {}\n"));
         assertThat(payload.get("configs").get("same").asBoolean()).isTrue();
+        assertThat(payload.get("warnings")).hasSize(2);
+        assertThat(payload.get("warnings").get(0).get("code").asText())
+                .isEqualTo(EdgeVisibilityService.WARN_SITE_PROXIES_PANEL);
+        assertThat(payload.get("warnings").get(1).get("code").asText())
+                .isEqualTo(EdgeVisibilityService.WARN_FALLBACK_PANEL);
+        assertThat(payload.get("panel").get("url").asText())
+                .isEqualTo("https://panel.pohr-roclh.xyz");
+        assertThat(payload.get("panel").get("host").asText()).isEqualTo("panel.pohr-roclh.xyz");
+        assertThat(payload.get("panel").get("published").asBoolean()).isTrue();
     }
 
     @Test
@@ -164,6 +179,19 @@ class McpEdgeToolsTest {
     void unknownToolFails() {
         ObjectNode result = tools.call("edge_apply", McpToolSupport.JSON.createObjectNode(), "tester");
         assertThat(result.get("isError").asBoolean()).isTrue();
+    }
+
+    private static EdgeMapDto map() {
+        EdgeSniRowDto row = new EdgeSniRowDto("htmlacademy.ru", "127.0.0.1:8443",
+                EdgeVisibilityService.TYPE_REALITY, true, List.of("45.131.43.6"),
+                List.of(new EdgeWarningDto(EdgeVisibilityService.WARN_SITE_PROXIES_PANEL,
+                        "WARN", "htmlacademy.ru", "site proxies the panel port")));
+        EdgeSniRowDto fallback = new EdgeSniRowDto("default", "127.0.0.1:8444",
+                EdgeVisibilityService.TYPE_FALLBACK, false, List.of(),
+                List.of(new EdgeWarningDto(EdgeVisibilityService.WARN_FALLBACK_PANEL,
+                        "WARN", "127.0.0.1:8444", "fallback points to the panel port")));
+        return new EdgeMapDto("45.131.43.6", "pohr-roclh.xyz", "pohr-roclh.xyz",
+                List.of(row), fallback, List.of());
     }
 
     private static EdgeConfig config() {

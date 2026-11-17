@@ -47,6 +47,10 @@ pohr:
     retention-days: 7
     daily-retention-days: 400
   public-url: ${POHR_PUBLIC_URL:}
+  # Публичный адрес панели (логин, инвайты, выдача ссылок). Живёт на отдельном
+  # хосте, чтобы apex отдавал сайт; на апексе остаются только /sub/* и /invite/*.
+  # Пусто — панель наружу не публикуется (только loopback).
+  panel-url: ${POHR_PANEL_URL:https://panel.pohr-roclh.xyz}
   scripts:
     home: ${SCRIPTS_HOME:./scripts}
   eu-nodes:
@@ -55,23 +59,30 @@ pohr:
     tunnel-socks-port: 10808
     xray-version: ${EU_XRAY_VERSION:latest}
     default-port: 8443
+    # Профиль EU-inbound по умолчанию (Т06): своё имя + локальный Caddy-сайт.
+    # Профиль конкретного узла (Т03) всегда перекрывает эти значения.
+    reality:
+      sni: ${EU_REALITY_SNI:eu.pohr-roclh.xyz}
+      target: ${EU_REALITY_TARGET:127.0.0.1:443}
     tunnel-check-interval: 60000       # ms = 1 минут
     tunnel-check-initial-delay: 30000   # 30 сек — дать Xray время подняться
     tunnel-check-timeout-seconds: 15
     tunnel-check-failures-threshold: 3
     tunnel-check-url: https://api.ipify.org
-    # Т06: профиль EU-inbound по умолчанию — своё имя и локальный Caddy-сайт.
-    # Профиль конкретного узла (Т03) всегда перекрывает эти значения.
-    reality:
-      sni: ${EU_REALITY_SNI:eu.pohr-roclh.xyz}
-      target: ${EU_REALITY_TARGET:127.0.0.1:443}
   invites:
     cleanup-interval: 600000
   edge:
     home: ${EDGE_HOME:/app/xray}      # тот же volume, что xray
     auto-start: ${EDGE_AUTO_START:true}
+    # Синхронизировать файлы сайта-легенды из образа в volume. false — только
+    # создавать отсутствующие файлы (ручные правки в volume сохраняются).
+    site-sync: ${EDGE_SITE_SYNC:true}
     # Явный IP сервера для сверки A-записей SNI. Пусто — берётся из pohr.public-url.
     server-ip: ${POHR_EDGE_SERVER_IP:}
+    # Доп. адреса (IP/CIDR через запятую), которым разрешён доступ к панельному
+    # Caddy-сайту. Пусто — доступен всем, у кого есть URL панели (защита — логин
+    # и инвайты). Если задано — чужие IP получают 404 (ужесточение).
+    panel-allowlist: ${POHR_EDGE_PANEL_ALLOWLIST:}
   metrics:
     interval-ms: 60000
     initial-delay-ms: 15000

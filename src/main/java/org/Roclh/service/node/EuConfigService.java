@@ -24,26 +24,55 @@ public class EuConfigService {
     private final TelegramProxyConfigRepository telegramProxyConfigRepository;
 
     /**
-     * Т06: EU-плечо больше не маскируется под чужой домен. По умолчанию —
-     * свой SNI и локальный Caddy-сайт; профиль узла (Т03) важнее.
+     * SNI EU-inbound по умолчанию, если у узла нет профиля (Т06: свой домен
+     * вместо чужого). Профиль узла всегда важнее этих значений.
      */
-    @Value("${pohr.eu-nodes.reality.target:127.0.0.1:443}")
-    private String defaultDest;
-
     @Value("${pohr.eu-nodes.reality.sni:eu.pohr-roclh.xyz}")
-    private String defaultServerNamesCsv;
+    private String defaultSniValue;
+
+    /** decoy-таргет EU-inbound по умолчанию (Т06: локальный Caddy, а не чужой сайт). */
+    @Value("${pohr.eu-nodes.reality.target:127.0.0.1:443}")
+    private String defaultTargetValue;
 
     @Value("${pohr.eu-nodes.tunnel-socks-port:10808}")
     private int healthcheckSocksPort;
 
     /** SNI для RU→EU Reality handshake (первый из global defaults). */
     public String defaultSni() {
-        return defaultServerNamesCsv.split("\\s*,\\s*")[0].trim();
+        return defaultSniValue.split("\\s*,\\s*")[0].trim();
+    }
+
+    /** Глобальный dest для EU-inbound (фолбэк, если у узла нет профиля). */
+    public String defaultTarget() {
+        return defaultTargetValue;
+    }
+
+    /** Глобальный fingerprint для RU-outbound (фолбэк). */
+    public String defaultFingerprint() {
+        return "firefox";
+    }
+
+    /**
+     * Эффективные значения профиля узла: значение узла, иначе глобальный
+     * дефолт. {@code null}/{@code blank} в узле — это «не задано», а не пустая
+     * строка, поэтому старые узлы ведут себя ровно как до Т03.
+     */
+    public EffectiveProfile effectiveProfile(EuNode node) {
+        String sni = firstNonBlank(node == null ? null : node.getSni(), defaultSni());
+        String target = firstNonBlank(node == null ? null : node.getTarget(), defaultTarget());
+        String fingerprint = firstNonBlank(node == null ? null : node.getFingerprint(), defaultFingerprint());
+        return new EffectiveProfile(
+                sni,
+                target,
+                fingerprint,
+                node != null && !isBlank(node.getSni()),
+                node != null && !isBlank(node.getTarget()),
+                node != null && !isBlank(node.getFingerprint()));
     }
 
     /** EU-конфиг с плейсхолдером __USE_LOCAL__ — EU подставит свой privateKey. */
     public String buildEuConfig(EuNode node) {
-        String sni = defaultSni();
+        EffectiveProfile profile = effectiveProfile(node);
         return """
                 {
                   "log": { "loglevel": "warning" },
@@ -69,7 +98,7 @@ public class EuConfigService {
                   "outbounds": [{ "protocol": "freedom", "tag": "direct" }]
                 }
                 """.formatted(node.getPort(), node.getTunnelUuid(),
-                defaultDest, sni, node.getRealityShortId());
+                profile.target(), profile.sni(), node.getRealityShortId());
     }
 
     /** SOCKS-inbound для healthcheck туннеля (RU-side проверка EU). */
@@ -129,10 +158,11 @@ public class EuConfigService {
         stream.put("network", "tcp");
         stream.put("security", "reality");
         ObjectNode reality = stream.putObject("realitySettings");
-        reality.put("serverName", defaultSni());
+        EffectiveProfile profile = effectiveProfile(node);
+        reality.put("serverName", profile.sni());
         reality.put("publicKey", node.getRealityPublicKey());
         reality.put("shortId", node.getRealityShortId());
-        reality.put("fingerprint", "firefox");
+        reality.put("fingerprint", profile.fingerprint());
 
         return ob;
     }
@@ -185,5 +215,29 @@ public class EuConfigService {
         r4.put("network", "tcp,udp");
 
         return routing;
+    }
+
+    // --- Профиль (Т03) ---------------------------------------------------------
+
+    /**
+     * Реальные значения, которые уходят в конфиги. Источник каждого поля
+     * важен для UI: админ должен видеть, что узел наследует глобальный дефолт.
+     */
+    public record EffectiveProfile(
+            String sni,
+            String target,
+            String fingerprint,
+            boolean sniFromNode,
+            boolean targetFromNode,
+            boolean fingerprintFromNode
+    ) {
+    }
+
+    private static String firstNonBlank(String value, String fallback) {
+        return isBlank(value) ? fallback : value.trim();
+    }
+
+    private static boolean isBlank(String value) {
+        return value == null || value.isBlank();
     }
 }

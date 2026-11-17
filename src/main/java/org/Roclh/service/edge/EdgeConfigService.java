@@ -17,6 +17,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 @Slf4j
@@ -32,6 +33,26 @@ public class EdgeConfigService {
 
     @Value("${pohr.edge.home}")
     private String edgeHome;
+
+    /** Порт Java-панели: Caddy-сайт, который смотрит сюда, — это панель. */
+    @Value("${server.port:8080}")
+    private int panelPort;
+
+    /**
+     * Публичный адрес панели — единственный сайт, которому разрешено
+     * проксировать порт панели наружу (логин, инвайты, выдача ссылок).
+     * Пусто — панель наружу не публикуется вообще.
+     */
+    @Value("${pohr.panel-url:https://panel.pohr-roclh.xyz}")
+    private String panelUrl;
+
+    /**
+     * Доп. адреса (CIDR/IP), которым разрешён доступ к панельному сайту.
+     * Пусто — доступен всем, у кого есть URL: панель закрыта логином и
+     * инвайтами. Для ужесточения можно ограничить список админом.
+     */
+    @Value("${pohr.edge.panel-allowlist:}")
+    private String panelAllowlistCsv;
 
     public Path nginxConfigPath() {
         return Path.of(edgeHome, "edge", "nginx.conf");
@@ -148,7 +169,7 @@ public class EdgeConfigService {
         sb.append("        format console\n");
         sb.append("    }\n");
         sb.append("    storage file_system ")
-                .append(Path.of(edgeHome, "edge", "caddy-data")).append('\n');
+                .append(Path.of(edgeHome, "edge", "caddy-data").toString().replace('\\', '/')).append('\n');
 
         sites.stream()
                 .map(EdgeSite::getAcmeEmail)
@@ -165,10 +186,13 @@ public class EdgeConfigService {
 
         // ---- Sites ----
         for (EdgeSite s : sites) {
+            boolean panelSite = pointsToPanel(s);
+            boolean expectedPanelSite = panelSite && isPanelHost(s.getDomain());
             sb.append(s.getDomain()).append(" {\n");
 
-            if (s.getBindAddress() != null && !s.getBindAddress().isBlank()) {
-                sb.append("    bind ").append(s.getBindAddress()).append('\n');
+            String bind = effectiveBind(s, panelSite, expectedPanelSite);
+            if (bind != null) {
+                sb.append("    bind ").append(bind).append('\n');
             }
 
             if ("redirect".equals(s.getSiteType())) {
@@ -177,14 +201,18 @@ public class EdgeConfigService {
                 sb.append("    redir ").append(s.getRedirectTarget())
                         .append(' ').append(code).append('\n');
             } else if ("static".equals(s.getSiteType())) {
-                appendTls(sb, s);
-                sb.append("    encode gzip\n");
-                sb.append("    root * ").append(rootPath(s)).append('\n');
-                sb.append("    file_server\n");
+                appendStaticSite(sb, s);
             } else {
                 appendTls(sb, s);
                 if ("acme".equals(s.getTlsMode())) {
                     sb.append("    encode gzip\n");
+                }
+                if (panelSite && (allowlistConfigured() || !expectedPanelSite)) {
+                    // Ожидаемый хост панели открыт (пустой allowlist) — вход
+                    // защищён логином и инвайтами. Неожиданный сайт с панелью
+                    // заперт на loopback и получает 404 всем, кроме allowlist.
+                    sb.append("    @panel_denied not remote_ip ").append(panelAllowlist()).append('\n');
+                    sb.append("    respond @panel_denied \"Not Found\" 404\n");
                 }
                 sb.append("    reverse_proxy ")
                         .append(s.getUpstreamHost()).append(':').append(s.getUpstreamPort())
@@ -202,7 +230,18 @@ public class EdgeConfigService {
             // HTTP-блок без bind: порт 80 обязан быть доступен снаружи для ACME HTTP-01.
             if (httpsEnabled(c) && !"off".equals(s.getTlsMode())) {
                 sb.append("http://").append(s.getDomain()).append(" {\n");
-                sb.append("    redir https://{host}{uri} 301\n");
+                // route{}, иначе Caddy отсортирует директивы по своему порядку
+                // (redir раньше respond) и 404 для панельных путей не сработает.
+                sb.append("    route {\n");
+                if (!expectedPanelSite) {
+                    // По 80 живут только ACME (перехватывается Caddy раньше) и 301.
+                    // Панельные пути не отвечают даже редиректом — сразу 404.
+                    // У самого хоста панели редирект нужен на все пути.
+                    sb.append("        @panel_paths path /api/* /admin/* /mcp /mcp/*\n");
+                    sb.append("        respond @panel_paths \"Not Found\" 404\n");
+                }
+                sb.append("        redir https://{host}{uri} 301\n");
+                sb.append("    }\n");
                 sb.append("}\n\n");
             }
         }
@@ -246,6 +285,120 @@ public class EdgeConfigService {
         return (path == null || path.isBlank())
                 ? Path.of(edgeHome, "site").toString().replace('\\', '/')
                 : path;
+    }
+
+    /**
+     * Статический сайт: файлы + кэш-заголовки + своя страница 404.
+     *
+     * <p>Проксируется только клиентский endpoint {@code /sub/*} — подписка,
+     * rules.json и скрипты клиента живут на публичном домене и должны
+     * работать по старым ссылкам. Приглашения уходят на сайт панели
+     * ({@code pohr.panel-url}), панельные пути ({@code /api}, {@code /admin},
+     * {@code /mcp}, {@code /ws}) на сайте не существуют и отдают 404.</p>
+     */
+    private void appendStaticSite(StringBuilder sb, EdgeSite s) {
+        appendTls(sb, s);
+        String root = rootPath(s);
+        sb.append("    encode gzip\n");
+        sb.append("    root * ").append(root).append('\n');
+        sb.append("    header {\n");
+        sb.append("        X-Content-Type-Options \"nosniff\"\n");
+        sb.append("        X-Frame-Options \"DENY\"\n");
+        sb.append("        Referrer-Policy \"strict-origin-when-cross-origin\"\n");
+        sb.append("        Strict-Transport-Security \"max-age=31536000; includeSubDomains\"\n");
+        sb.append("    }\n");
+        sb.append("    header /assets/* Cache-Control \"public, max-age=31536000, immutable\"\n");
+        sb.append("    header /favicon.svg Cache-Control \"public, max-age=604800\"\n");
+        sb.append("    header /favicon.ico Cache-Control \"public, max-age=604800\"\n");
+        sb.append("    header /robots.txt Cache-Control \"public, max-age=86400\"\n");
+        sb.append("    header /sitemap.xml Cache-Control \"public, max-age=86400\"\n");
+        sb.append("    header *.html Cache-Control \"public, max-age=300\"\n");
+        String panelHost = panelHost();
+        if (panelHost != null) {
+            // Старые ссылки-приглашения (и любые /invite/*) — на сайт панели:
+            // сессия после принятия инвайта должна ставиться на её origin.
+            sb.append("    redir /invite/* https://").append(panelHost).append("{uri} 301\n");
+        } else {
+            appendClientApiHandle(sb, "/invite/*");
+        }
+        appendClientApiHandle(sb, "/sub/*");
+        sb.append("    @panel_paths path /api/* /admin/* /mcp /mcp/* /ws/*\n");
+        sb.append("    respond @panel_paths \"Not Found\" 404\n");
+        sb.append("    file_server\n");
+        sb.append("    handle_errors {\n");
+        sb.append("        root * ").append(root).append('\n');
+        sb.append("        @not_found expression {http.error.status_code} == 404\n");
+        sb.append("        rewrite @not_found /404.html\n");
+        sb.append("        file_server\n");
+        sb.append("    }\n");
+    }
+
+    /** Узкий проброс одного префикса в Java-приложение (порт панели на loopback). */
+    private void appendClientApiHandle(StringBuilder sb, String pathPrefix) {
+        sb.append("    handle ").append(pathPrefix).append(" {\n");
+        sb.append("        reverse_proxy 127.0.0.1:").append(panelPort).append('\n');
+        sb.append("    }\n");
+    }
+
+    /**
+     * Сайт проксирует порт панели. Публично это разрешено только ожидаемому
+     * хосту панели ({@code pohr.panel-url}); остальные такие сайты генератор
+     * запирает на loopback, чтобы форма логина не оказалась на публичном
+     * сертификате случайно.
+     */
+    boolean pointsToPanel(EdgeSite site) {
+        if (site == null || !"proxy".equals(site.getSiteType())) {
+            return false;
+        }
+        String host = site.getUpstreamHost();
+        Integer port = site.getUpstreamPort();
+        if (host == null || port == null || port != panelPort) {
+            return false;
+        }
+        String value = host.trim().toLowerCase(Locale.ROOT);
+        return value.equals("127.0.0.1") || value.equals("localhost")
+                || value.equals("0.0.0.0") || value.equals("::1") || value.equals("[::1]");
+    }
+
+    /**
+     * Панельный сайт: ожидаемый хост панели ({@code pohr.panel-url}) слушает
+     * публично — иначе пользователи не войдут. Любой другой сайт, который
+     * проксирует порт панели, принудительно запирается на loopback, чтобы
+     * случайная правка в БД не выставила форму логина наружу.
+     */
+    private String effectiveBind(EdgeSite site, boolean panelSite, boolean expectedPanelSite) {
+        if (panelSite && !expectedPanelSite) {
+            return "127.0.0.1";
+        }
+        String bind = site.getBindAddress();
+        return (bind == null || bind.isBlank()) ? null : bind.trim();
+    }
+
+    /** Хост панели из {@code pohr.panel-url}; {@code null} — панель не публикуется. */
+    String panelHost() {
+        return EdgeVisibilityService.hostFromUrl(panelUrl);
+    }
+
+    /** Админ явно ограничил доступ к панели списком адресов. */
+    private boolean allowlistConfigured() {
+        return panelAllowlistCsv != null && !panelAllowlistCsv.isBlank();
+    }
+
+    /** Сайт на ожидаемом хосте панели (единственный, кому можно смотреть в 8080). */
+    boolean isPanelHost(String domain) {
+        String host = panelHost();
+        return host != null && domain != null && host.equalsIgnoreCase(domain.trim());
+    }
+
+    /** Список адресов для {@code remote_ip}: loopback + опциональный allowlist. */
+    String panelAllowlist() {
+        StringBuilder sb = new StringBuilder("127.0.0.1 ::1");
+        if (panelAllowlistCsv != null && !panelAllowlistCsv.isBlank()) {
+            for (String item : panelAllowlistCsv.split("[,\\s]+")) {
+                if (!item.isBlank()) sb.append(' ').append(item.trim());
+            }
+        }
+        return sb.toString();
     }
 
     /** "127.0.0.1:8443" -> "u_127_0_0_1_8443" — стабильное имя upstream-блока. */

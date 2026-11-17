@@ -3,7 +3,9 @@ services:
     image: roclh/pohr:latest
     container_name: pohr
     ports:
-      - "${POHR_PORT:-8080}:8080"
+      # Панель — только на loopback: снаружи её нет ни по 443 (Caddy), ни по 8080.
+      # Доступ: ssh -L 8080:127.0.0.1:8080 root@<host>, затем http://127.0.0.1:8080
+      - "127.0.0.1:${POHR_PORT:-8080}:8080"
       - "${POHR_VPN_PORT:-8443}:8443"
       - "${POHR_TELEMT_PORT:-3128}:3128"
     volumes:

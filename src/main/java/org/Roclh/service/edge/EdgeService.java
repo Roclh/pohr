@@ -62,7 +62,7 @@ public class EdgeService {
      * При ошибке валидации — ничего не применяется, состояние процессов не меняется.
      */
     public synchronized void apply() {
-        siteContent.ensurePlaceholder();
+        siteContent.ensureSiteContent();
         cfgService.materialize();
 
         // 1. Проверяем конфиги

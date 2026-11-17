@@ -51,6 +51,7 @@ class EdgeVisibilityServiceTest {
         ReflectionTestUtils.setField(service, "serverIpOverride", "");
         ReflectionTestUtils.setField(service, "telemtSocksPort", 10809);
         ReflectionTestUtils.setField(service, "serverPort", 8080);
+        ReflectionTestUtils.setField(service, "panelUrl", "https://panel.pohr-roclh.xyz");
 
         when(cfgService.getConfig()).thenReturn(config("127.0.0.1:8080"));
         when(dns.lookup(anyString())).thenAnswer(invocation -> lookup(invocation.getArgument(0)));
@@ -190,6 +191,94 @@ class EdgeVisibilityServiceTest {
                 .contains("missing on disk")
                 .contains("+worker_processes auto;");
         assertThat(Files.exists(nginx)).isFalse();
+    }
+
+    @Test
+    @DisplayName("Сайт, проксирующий порт панели, помечается предупреждением")
+    void warnsWhenSiteProxiesPanel() {
+        when(routeRepo.findByEnabledTrueOrderBySortOrderAsc()).thenReturn(List.of());
+        when(siteRepo.findByEnabledTrueOrderByDomainAsc()).thenReturn(List.of(
+                proxySite("pohr-roclh.xyz", "127.0.0.1", 8080),
+                proxySite("www.pohr-roclh.xyz", "127.0.0.1", 8444)));
+
+        EdgeMapDto map = service.buildMap();
+
+        assertThat(codes(row(map, "pohr-roclh.xyz").warnings()))
+                .contains(EdgeVisibilityService.WARN_SITE_PROXIES_PANEL);
+        assertThat(codes(row(map, "www.pohr-roclh.xyz").warnings()))
+                .doesNotContain(EdgeVisibilityService.WARN_SITE_PROXIES_PANEL);
+    }
+
+    @Test
+    @DisplayName("Варнинг виден и на строке SNI, когда у панельного сайта есть маршрут")
+    void warnsOnSniRowWhenPanelSiteHasRoute() {
+        when(routeRepo.findByEnabledTrueOrderBySortOrderAsc()).thenReturn(List.of(
+                route("pohr-roclh.xyz", "127.0.0.1", 8444, "caddy")));
+        when(siteRepo.findByEnabledTrueOrderByDomainAsc()).thenReturn(List.of(
+                proxySite("pohr-roclh.xyz", "127.0.0.1", 8080)));
+
+        EdgeMapDto map = service.buildMap();
+
+        assertThat(codes(row(map, "pohr-roclh.xyz").warnings()))
+                .contains(EdgeVisibilityService.WARN_SITE_PROXIES_PANEL);
+    }
+
+    @Test
+    @DisplayName("Статический сайт на apex не считается панельным")
+    void staticSiteIsNotPanelWarning() {
+        when(routeRepo.findByEnabledTrueOrderBySortOrderAsc()).thenReturn(List.of());
+        when(siteRepo.findByEnabledTrueOrderByDomainAsc()).thenReturn(List.of(
+                site("pohr-roclh.xyz")));
+
+        EdgeMapDto map = service.buildMap();
+
+        assertThat(codes(row(map, "pohr-roclh.xyz").warnings()))
+                .doesNotContain(EdgeVisibilityService.WARN_SITE_PROXIES_PANEL);
+    }
+
+    @Test
+    @DisplayName("Ожидаемый хост панели не помечается, остальные прокси в панель — да")
+    void expectedPanelHostIsNotWarned() {
+        when(routeRepo.findByEnabledTrueOrderBySortOrderAsc()).thenReturn(List.of());
+        when(siteRepo.findByEnabledTrueOrderByDomainAsc()).thenReturn(List.of(
+                proxySite("panel.pohr-roclh.xyz", "127.0.0.1", 8080),
+                proxySite("pohr-roclh.xyz", "127.0.0.1", 8080)));
+
+        EdgeMapDto map = service.buildMap();
+
+        assertThat(codes(row(map, "panel.pohr-roclh.xyz").warnings()))
+                .doesNotContain(EdgeVisibilityService.WARN_SITE_PROXIES_PANEL);
+        assertThat(codes(row(map, "pohr-roclh.xyz").warnings()))
+                .contains(EdgeVisibilityService.WARN_SITE_PROXIES_PANEL);
+        assertThat(service.panelHost()).isEqualTo("panel.pohr-roclh.xyz");
+        assertThat(service.panelUrl()).isEqualTo("https://panel.pohr-roclh.xyz");
+    }
+
+    @Test
+    @DisplayName("Без pohr.panel-url панелью считается любой сайт на её порт")
+    void withoutPanelUrlEveryPanelSiteIsWarned() {
+        ReflectionTestUtils.setField(service, "panelUrl", "");
+        when(routeRepo.findByEnabledTrueOrderBySortOrderAsc()).thenReturn(List.of());
+        when(siteRepo.findByEnabledTrueOrderByDomainAsc()).thenReturn(List.of(
+                proxySite("panel.pohr-roclh.xyz", "127.0.0.1", 8080)));
+
+        EdgeMapDto map = service.buildMap();
+
+        assertThat(codes(row(map, "panel.pohr-roclh.xyz").warnings()))
+                .contains(EdgeVisibilityService.WARN_SITE_PROXIES_PANEL);
+        assertThat(service.panelHost()).isNull();
+        assertThat(service.panelUrl()).isNull();
+    }
+
+    private static EdgeSite proxySite(String domain, String host, int port) {
+        return EdgeSite.builder()
+                .domain(domain)
+                .siteType("proxy")
+                .upstreamHost(host)
+                .upstreamPort(port)
+                .tlsMode("acme")
+                .enabled(true)
+                .build();
     }
 
     private static EdgeConfig config(String fallback) {

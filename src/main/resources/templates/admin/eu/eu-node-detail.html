@@ -14,6 +14,29 @@
 
     <div th:if="${successMessage}" class="alert success" th:text="#{${successMessage}}"></div>
     <div th:if="${errorMessage}" class="alert error" th:text="${errorMessage}"></div>
+    <div th:if="${xrayRestarted != null and xrayRestarted}" class="alert" th:text="#{node.profile.xrayRestarted}"></div>
+    <div th:if="${xrayRestarted != null and !xrayRestarted}" class="alert"
+         th:text="#{node.profile.xrayNotRunning}"></div>
+    <div th:if="${profileWarnings != null and !#lists.isEmpty(profileWarnings)}" class="alert">
+        <strong th:text="#{node.profile.warnings}">Warnings</strong>
+        <ul>
+            <li th:each="warning : ${profileWarnings}" th:text="${warning}"></li>
+        </ul>
+    </div>
+
+    <div th:if="${validation != null}" class="alert"
+         th:classappend="${validation.ok()} ? 'success' : 'error'">
+        <div th:text="${validation.ok()} ? #{node.profile.validation.ok} : #{node.profile.validation.failed}"></div>
+        <ul th:if="${!#lists.isEmpty(validation.errors())}">
+            <li th:each="error : ${validation.errors()}" th:text="${error}"></li>
+        </ul>
+        <div th:if="${!#lists.isEmpty(validation.warnings())}">
+            <strong th:text="#{node.profile.warnings}">Warnings</strong>
+            <ul>
+                <li th:each="warning : ${validation.warnings()}" th:text="${warning}"></li>
+            </ul>
+        </div>
+    </div>
 
     <section class="card">
         <h2 th:text="#{node.detail.info}">Info</h2>
@@ -94,6 +117,120 @@
                         <code th:text="${rawNode.nodeSecret}">...</code>
                     </details>
                 </td>
+            </tr>
+            </tbody>
+        </table>
+    </section>
+
+    <section class="card">
+        <h2 th:text="#{node.profile.title}">Reality / SNI</h2>
+        <p class="hint" th:text="#{node.profile.hint}">
+            Профиль применяется к EU-inbound (dest/serverNames) и к RU-outbound (serverName/fingerprint).
+        </p>
+
+        <table class="table">
+            <thead>
+            <tr>
+                <th></th>
+                <th th:text="#{node.profile.effective.value}">Value</th>
+                <th th:text="#{node.profile.effective.source}">Source</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr>
+                <th th:text="#{node.profile.sni}">SNI</th>
+                <td><code th:text="${effective.sni()}">eu.pohr-roclh.xyz</code></td>
+                <td th:text="${effective.sniFromNode()} ? #{node.profile.fromNode} : #{node.profile.inherited}">
+                    inherited
+                </td>
+            </tr>
+            <tr>
+                <th th:text="#{node.profile.target}">Target</th>
+                <td><code th:text="${effective.target()}">127.0.0.1:443</code></td>
+                <td th:text="${effective.targetFromNode()} ? #{node.profile.fromNode} : #{node.profile.inherited}">
+                    inherited
+                </td>
+            </tr>
+            <tr>
+                <th th:text="#{node.profile.fingerprint}">Fingerprint</th>
+                <td><code th:text="${effective.fingerprint()}">firefox</code></td>
+                <td th:text="${effective.fingerprintFromNode()} ? #{node.profile.fromNode} : #{node.profile.inherited}">
+                    inherited
+                </td>
+            </tr>
+            <tr>
+                <th th:text="#{node.profile.updatedAt}">Profile updated</th>
+                <td th:colspan="2"
+                    th:text="${node.profileUpdatedAt() != null ? #strings.substringBefore(node.profileUpdatedAt().toString(), '.') : '—'}">
+                    —
+                </td>
+            </tr>
+            </tbody>
+        </table>
+
+        <form th:action="@{/admin/nodes/{id}/profile(id=${node.id()})}" method="post">
+            <label for="sni" th:text="#{node.profile.sni}">SNI</label>
+            <input type="text" id="sni" name="sni" maxlength="253"
+                   th:value="${profileForm.sni()}" th:placeholder="#{node.profile.sni.placeholder}">
+            <p class="hint" th:text="#{node.profile.sni.hint}"></p>
+
+            <label for="target" th:text="#{node.profile.target}">Target</label>
+            <input type="text" id="target" name="target" maxlength="255"
+                   th:value="${profileForm.target()}" th:placeholder="#{node.profile.target.placeholder}">
+            <p class="hint" th:text="#{node.profile.target.hint}"></p>
+
+            <label for="fingerprint" th:text="#{node.profile.fingerprint}">Fingerprint</label>
+            <select id="fingerprint" name="fingerprint">
+                <option value="" th:selected="${profileForm.fingerprint() == null}"
+                        th:text="#{node.profile.fingerprint.inherit}">inherit (firefox)</option>
+                <option th:each="fp : ${ {'firefox','edge','chrome','safari'}}"
+                        th:value="${fp}" th:text="${fp}"
+                        th:selected="${#strings.equalsIgnoreCase(profileForm.fingerprint(), fp)}"></option>
+            </select>
+            <p class="hint" th:text="#{node.profile.fingerprint.hint}"></p>
+
+            <div class="form-actions">
+                <button type="submit" th:formaction="@{/admin/nodes/{id}/profile/validate(id=${node.id()})}"
+                        class="link-button on-light" th:text="#{node.profile.validate}">Validate</button>
+                <button type="submit"
+                        onclick="return confirm(this.dataset.confirm)"
+                        th:data-confirm="#{node.profile.apply.confirm}"
+                        th:text="#{node.profile.apply}">Apply</button>
+            </div>
+        </form>
+
+        <div class="form-actions" style="flex-wrap: wrap;">
+            <a class="link" target="_blank"
+               th:href="@{/admin/nodes/{id}/profile/preview(id=${node.id()})}"
+               th:text="#{node.profile.preview}">Preview EU config</a>
+
+            <form th:action="@{/admin/nodes/{id}/profile/rollback(id=${node.id()})}" method="post" class="inline"
+                  th:if="${history != null and !#lists.isEmpty(history)}"
+                  onsubmit="return confirm(this.dataset.confirm)"
+                  th:data-confirm="#{node.profile.rollback.confirm}">
+                <button type="submit" class="link-button on-light"
+                        th:text="#{node.profile.rollback}">Roll back</button>
+            </form>
+        </div>
+
+        <h3 th:text="#{node.profile.history}">Recent profiles</h3>
+        <p class="hint" th:if="${history == null or #lists.isEmpty(history)}"
+           th:text="#{node.profile.history.empty}">Nothing to roll back yet.</p>
+        <table class="table" th:if="${history != null and !#lists.isEmpty(history)}">
+            <thead>
+            <tr>
+                <th th:text="#{node.profile.history.created}">Saved</th>
+                <th th:text="#{node.profile.sni}">SNI</th>
+                <th th:text="#{node.profile.target}">Target</th>
+                <th th:text="#{node.profile.fingerprint}">Fingerprint</th>
+            </tr>
+            </thead>
+            <tbody>
+            <tr th:each="entry : ${history}">
+                <td th:text="${#strings.substringBefore(entry.createdAt.toString(), '.')}">—</td>
+                <td><code th:text="${entry.sni} ?: '—'">—</code></td>
+                <td><code th:text="${entry.target} ?: '—'">—</code></td>
+                <td><code th:text="${entry.fingerprint} ?: '—'">—</code></td>
             </tr>
             </tbody>
         </table>

@@ -4,8 +4,11 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.Roclh.model.dto.edge.EdgeConfigFileDto;
 import org.Roclh.model.dto.edge.EdgeConfigFilesDto;
+import org.Roclh.model.dto.edge.EdgeMapDto;
 import org.Roclh.model.dto.edge.EdgePreviewDto;
+import org.Roclh.model.dto.edge.EdgeSniRowDto;
 import org.Roclh.model.dto.edge.EdgeStatusDto;
+import org.Roclh.model.dto.edge.EdgeWarningDto;
 import org.Roclh.model.edge.EdgeConfig;
 import org.Roclh.model.edge.EdgeRoute;
 import org.Roclh.model.edge.EdgeSite;
@@ -44,7 +47,7 @@ public class McpEdgeTools implements McpToolModule {
     public ArrayNode definitions() {
         ArrayNode tools = McpToolSupport.JSON.createArrayNode();
         tools.add(McpToolSupport.tool("edge_status",
-                "Состояние edge: порты stream/http/https, fallback, процессы nginx/caddy, количество маршрутов и сайтов, sha256 сгенерированных конфигов и их совпадение с файлами на диске. Только чтение.",
+                "Состояние edge: порты stream/http/https, fallback, процессы nginx/caddy, количество маршрутов и сайтов, sha256 сгенерированных конфигов и их совпадение с файлами на диске, а также предупреждения периметра (site-proxies-panel, fallback-panel, dns-*). Только чтение.",
                 """
                 {"type":"object","properties":{},"additionalProperties":false}
                 """));
@@ -116,10 +119,53 @@ public class McpEdgeTools implements McpToolModule {
         configs.set("caddy", configNode(files.caddy(), false));
         configs.put("same", files.same());
 
+        ObjectNode panel = out.putObject("panel");
+        McpToolSupport.putNullable(panel, "url", visibility.panelUrl());
+        McpToolSupport.putNullable(panel, "host", visibility.panelHost());
+        panel.put("published", visibility.panelHost() != null);
+
+        out.set("warnings", warningsNode(visibility.buildMap()));
+
         out.put("note", files.same()
                 ? "Сгенерированные конфиги совпадают с файлами на диске."
                 : "Сгенерированные конфиги отличаются от файлов на диске — нужен apply.");
         return out;
+    }
+
+    /**
+     * Предупреждения периметра в одном месте: глобальные, по строкам SNI и по
+     * fallback. Агент видит «сайт проксирует порт панели» там же, где админ
+     * видит его в UI {@code /admin/edge}.
+     */
+    private static ArrayNode warningsNode(EdgeMapDto map) {
+        ArrayNode warnings = McpToolSupport.JSON.createArrayNode();
+        if (map == null) {
+            return warnings;
+        }
+        for (EdgeWarningDto warning : map.warnings()) {
+            warnings.add(warningNode(warning, null));
+        }
+        for (EdgeSniRowDto row : map.routes()) {
+            for (EdgeWarningDto warning : row.warnings()) {
+                warnings.add(warningNode(warning, row.sni()));
+            }
+        }
+        if (map.fallback() != null) {
+            for (EdgeWarningDto warning : map.fallback().warnings()) {
+                warnings.add(warningNode(warning, "default"));
+            }
+        }
+        return warnings;
+    }
+
+    private static ObjectNode warningNode(EdgeWarningDto warning, String sni) {
+        ObjectNode node = McpToolSupport.JSON.createObjectNode();
+        node.put("code", warning.code());
+        node.put("severity", warning.severity());
+        McpToolSupport.putNullable(node, "subject", warning.subject());
+        McpToolSupport.putNullable(node, "detail", warning.detail());
+        McpToolSupport.putNullable(node, "sni", sni);
+        return node;
     }
 
     private static void processNode(ObjectNode parent, String name, boolean running,

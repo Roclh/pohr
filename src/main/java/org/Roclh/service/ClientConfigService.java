@@ -22,7 +22,7 @@ public class ClientConfigService {
     void seedDefaults() {
         try {
             seedIfMissing("happ", "Happ", """
-                    profile-title: Pohr
+                    profile-title: Subscription
                     profile-update-interval: 6
                     fragmentation-enable: 1
                     fragmentation-packets: tlshello
@@ -30,11 +30,11 @@ public class ClientConfigService {
                     fragmentation-interval: 10-20
                     """);
             seedIfMissing("v2rayng", "v2rayNG", """
-                    profile-title: Pohr
+                    profile-title: Subscription
                     profile-update-interval: 6
                     """);
             seedIfMissing("v2rayn", "v2rayN", """
-                    profile-title: Pohr
+                    profile-title: Subscription
                     profile-update-interval: 6
                     """);
         } catch (Exception e) {

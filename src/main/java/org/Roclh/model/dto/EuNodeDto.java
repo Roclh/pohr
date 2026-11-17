@@ -18,7 +18,11 @@ public record EuNodeDto(
         String lastHealthMsg,
         Instant lastTunnelCheckAt,
         String lastTunnelIp,
-        Instant enrolledAt
+        Instant enrolledAt,
+        String sni,
+        String target,
+        String fingerprint,
+        Instant profileUpdatedAt
 ) {
     public static EuNodeDto from(org.Roclh.model.EuNode n) {
         return new EuNodeDto(
@@ -34,7 +38,11 @@ public record EuNodeDto(
                 n.getLastHealthMsg(),
                 n.getLastTunnelCheckAt(),
                 n.getLastTunnelIp(),
-                n.getEnrolledAt()
+                n.getEnrolledAt(),
+                n.getSni(),
+                n.getTarget(),
+                n.getFingerprint(),
+                n.getProfileUpdatedAt()
         );
     }
 }

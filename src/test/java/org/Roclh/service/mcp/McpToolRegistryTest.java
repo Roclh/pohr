@@ -11,6 +11,8 @@ import org.Roclh.service.edge.EdgeVisibilityService;
 import org.Roclh.service.edge.NginxProcessManager;
 import org.Roclh.service.metric.ContainerMetrics;
 import org.Roclh.service.metric.MetricsService;
+import org.Roclh.service.node.EuConfigService;
+import org.Roclh.service.node.EuNodeProfileService;
 import org.Roclh.service.node.EuNodeService;
 import org.Roclh.service.process.OrphanProcessReaper;
 import org.Roclh.service.script.ScriptCatalogService;
@@ -78,12 +80,17 @@ class McpToolRegistryTest {
                 mock(EdgeRouteRepository.class),
                 mock(EdgeSiteRepository.class));
 
+        McpEuNodeTools euNodeTools = new McpEuNodeTools(
+                mock(EuNodeService.class),
+                mock(EuNodeProfileService.class),
+                mock(EuConfigService.class));
+
         McpToolService service = new McpToolService(
                 mock(ScriptCatalogService.class),
                 mock(ScriptVersionService.class),
                 mock(ScriptVersionRepository.class),
                 mock(McpInstructionProvider.class),
-                List.of(xrayTools, reportTools, diagnostics, edgeTools));
+                List.of(xrayTools, reportTools, diagnostics, edgeTools, euNodeTools));
 
         ArrayNode tools = service.toolDefinitions();
         Set<String> names = new HashSet<>();
@@ -93,7 +100,7 @@ class McpToolRegistryTest {
             assertThat(tool.get("inputSchema").get("type").asText()).isEqualTo("object");
         }
 
-        assertThat(tools.size()).isEqualTo(36);
+        assertThat(tools.size()).isEqualTo(39);
         assertThat(names).contains(
                 "scripts_list",
                 "xray_configs_list",
@@ -116,6 +123,9 @@ class McpToolRegistryTest {
                 "metrics_stats",
                 "edge_status",
                 "edge_config_read",
-                "edge_preview");
+                "edge_preview",
+                "eu_node_config_read",
+                "eu_node_config_update",
+                "eu_node_sync");
     }
 }

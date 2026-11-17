@@ -31,3 +31,9 @@ databaseChangeLog:
       file: db/changelog/015-mem-anon/mem_anon.sql
   - include:
       file: db/changelog/016-edge-static/edge_static.sql
+  - include:
+      file: db/changelog/017-eu-node-profile/eu_node_profile.sql
+  - include:
+      file: db/changelog/018-edge-perimeter/edge_perimeter.sql
+  - include:
+      file: db/changelog/019-sub-neutral/sub_neutral.sql

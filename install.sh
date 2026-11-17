@@ -63,7 +63,8 @@ services:
     image: ${IMAGE}
     container_name: pohr
     ports:
-      - "\${POHR_PORT:-8080}:8080"
+      # Порт панели не публикуется: панель идёт через Caddy по 443 на panel.<домен>.
+      - "127.0.0.1:\${POHR_PORT:-8080}:8080"
       - "\${POHR_VPN_PORT:-8443}:8443"
     volumes:
       - pohr-data:/app/data

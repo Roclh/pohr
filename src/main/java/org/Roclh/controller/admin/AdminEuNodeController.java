@@ -9,10 +9,15 @@ import org.Roclh.model.EuNode;
 import org.Roclh.model.User;
 import org.Roclh.model.dto.EuNodeDto;
 import org.Roclh.model.dto.EuNodeForm;
+import org.Roclh.model.dto.EuNodeProfileForm;
 import org.Roclh.repository.UserRepository;
+import org.Roclh.service.node.EuConfigService;
+import org.Roclh.service.node.EuNodeProfileService;
 import org.Roclh.service.node.EuNodeService;
 import org.Roclh.service.xray.XrayConfigMaterializer;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -20,6 +25,7 @@ import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.support.RedirectAttributes;
 
+import java.security.Principal;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -32,6 +38,8 @@ import java.util.UUID;
 public class AdminEuNodeController {
 
     private final EuNodeService nodeService;
+    private final EuNodeProfileService profileService;
+    private final EuConfigService euConfigService;
     private final UserRepository userRepository;
     private final XrayConfigMaterializer materializer;
 
@@ -94,14 +102,94 @@ public class AdminEuNodeController {
 
     @GetMapping("/{id}")
     public String detail(@PathVariable UUID id, Model model, RedirectAttributes flash) {
+        if (!populateDetail(id, model)) {
+            flash.addFlashAttribute("errorMessage", "error.node.notfound");
+            return "redirect:/admin/nodes";
+        }
+        return "admin/eu/eu-node-detail";
+    }
+
+    // --- Профиль REALITY (Т03) ------------------------------------------------
+
+    /**
+     * «Применить»: валидирует, сохраняет профиль, материализует RU-конфиг и
+     * перезапускает Xray. Перезапуск рвёт клиентские сессии на несколько
+     * секунд, поэтому это отдельное действие, а не сохранение формы.
+     */
+    @PostMapping("/{id}/profile")
+    public String applyProfile(@PathVariable UUID id,
+                               @ModelAttribute("profileForm") EuNodeProfileForm form,
+                               Principal principal,
+                               Model model,
+                               RedirectAttributes flash) {
+        try {
+            EuNodeProfileService.ApplyResult result = profileService.apply(id, form, actor(principal));
+            if (!result.applied()) {
+                if (!populateDetail(id, model)) {
+                    flash.addFlashAttribute("errorMessage", "error.node.notfound");
+                    return "redirect:/admin/nodes";
+                }
+                model.addAttribute("profileForm", form.normalized());
+                model.addAttribute("validation", result.validation());
+                return "admin/eu/eu-node-detail";
+            }
+            flash.addFlashAttribute("successMessage", "flash.node.profileApplied");
+            flash.addFlashAttribute("profileWarnings", result.validation().warnings());
+            flash.addFlashAttribute("xrayRestarted", result.restarted());
+        } catch (Exception e) {
+            log.warn("Failed to apply profile to node {}: {}", id, e.getMessage(), e);
+            flash.addFlashAttribute("errorMessage", e.getMessage());
+        }
+        return "redirect:/admin/nodes/" + id;
+    }
+
+    /** «Проверить»: только валидация, без сохранения и без перезапуска Xray. */
+    @PostMapping("/{id}/profile/validate")
+    public String validateProfile(@PathVariable UUID id,
+                                  @ModelAttribute("profileForm") EuNodeProfileForm form,
+                                  Model model,
+                                  RedirectAttributes flash) {
         EuNode node = nodeService.findById(id).orElse(null);
         if (node == null) {
             flash.addFlashAttribute("errorMessage", "error.node.notfound");
             return "redirect:/admin/nodes";
         }
-        model.addAttribute("node", EuNodeDto.from(node));
-        model.addAttribute("rawNode", node);
+        populateDetail(id, model);
+        model.addAttribute("profileForm", form.normalized());
+        model.addAttribute("validation", profileService.validate(node, form));
         return "admin/eu/eu-node-detail";
+    }
+
+    /** Сгенерированный EU-конфиг текущего профиля (с фолбэком на глобальные значения). */
+    @GetMapping(value = "/{id}/profile/preview", produces = MediaType.TEXT_PLAIN_VALUE)
+    @ResponseBody
+    public ResponseEntity<String> previewProfile(@PathVariable UUID id) {
+        return nodeService.findById(id)
+                .map(node -> {
+                    String config = euConfigService.buildEuConfig(node);
+                    return ResponseEntity.ok()
+                            .header("X-Content-Sha256", euConfigService.computeHash(config))
+                            .contentType(MediaType.TEXT_PLAIN)
+                            .body(config);
+                })
+                .orElseGet(() -> ResponseEntity.notFound().build());
+    }
+
+    /** «Откатить»: вернуть предыдущий профиль из истории узла. */
+    @PostMapping("/{id}/profile/rollback")
+    public String rollbackProfile(@PathVariable UUID id,
+                                  Principal principal,
+                                  RedirectAttributes flash) {
+        try {
+            EuNodeProfileService.ApplyResult result = profileService.rollback(id, actor(principal));
+            flash.addFlashAttribute("successMessage", "flash.node.profileRolledBack");
+            flash.addFlashAttribute("profileWarnings", result.validation().warnings());
+            flash.addFlashAttribute("xrayRestarted", result.restarted());
+        } catch (Exception e) {
+            log.warn("Failed to roll back profile of node {}: {}", id, e.getMessage(), e);
+            flash.addFlashAttribute("errorMessage", e.getMessage());
+        }
+        return "redirect:/admin/nodes/" + id;
     }
 
     @PostMapping("/{id}/delete")
@@ -160,6 +248,26 @@ public class AdminEuNodeController {
         return "redirect:/admin/nodes/" + id;
     }
 
+
+    private boolean populateDetail(UUID id, Model model) {
+        EuNode node = nodeService.findById(id).orElse(null);
+        if (node == null) {
+            return false;
+        }
+        model.addAttribute("node", EuNodeDto.from(node));
+        model.addAttribute("rawNode", node);
+        model.addAttribute("effective", profileService.effectiveProfile(node));
+        model.addAttribute("history", profileService.history(id));
+        if (!model.containsAttribute("profileForm")) {
+            model.addAttribute("profileForm",
+                    new EuNodeProfileForm(node.getSni(), node.getTarget(), node.getFingerprint()));
+        }
+        return true;
+    }
+
+    private static String actor(Principal principal) {
+        return principal == null || principal.getName() == null ? "system" : principal.getName();
+    }
 
     private String resolveBaseUrl(HttpServletRequest request) {
         if (publicUrlOverride != null && !publicUrlOverride.isBlank()) {

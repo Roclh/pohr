@@ -7,6 +7,7 @@ import org.Roclh.model.InviteToken;
 import org.Roclh.model.User;
 import org.Roclh.model.dto.InviteAcceptForm;
 import org.Roclh.service.InviteService;
+import org.Roclh.service.PanelUrlResolver;
 import org.Roclh.service.SubscriptionService;
 import org.Roclh.service.UserService;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -30,6 +31,7 @@ public class InviteAcceptController {
     private final InviteService inviteService;
     private final UserService userService;
     private final SubscriptionService subscriptionService;
+    private final PanelUrlResolver panelUrlResolver;
 
     @GetMapping("/{token}")
     public String show(@PathVariable String token,
@@ -37,7 +39,7 @@ public class InviteAcceptController {
                        RedirectAttributes flash) {
         if (!inviteService.isUsable(token)) {
             flash.addFlashAttribute("errorMessage", "error.invite.unusable");
-            return "redirect:/login";
+            return redirectTo("/login");
         }
         model.addAttribute("token", token);
         model.addAttribute("form", new InviteAcceptForm("", ""));
@@ -53,7 +55,7 @@ public class InviteAcceptController {
                          RedirectAttributes flash) {
         if (!inviteService.isUsable(token)) {
             flash.addFlashAttribute("errorMessage", "error.invite.unusable");
-            return "redirect:/login";
+            return redirectTo("/login");
         }
         if (userService.usernameTaken(form.username(), null)) {
             binding.rejectValue("username", "validation.username.taken");
@@ -78,6 +80,14 @@ public class InviteAcceptController {
         request.getSession(true).setAttribute(
                 HttpSessionSecurityContextRepository.SPRING_SECURITY_CONTEXT_KEY, ctx);
 
-        return "redirect:/home";
+        return redirectTo("/home");
+    }
+
+    /**
+     * Принятие инвайта поднимает сессию — уводим на тот же origin, где живёт
+     * панель ({@code pohr.panel-url}), а не на сайт-легенду.
+     */
+    private String redirectTo(String path) {
+        return "redirect:" + panelUrlResolver.redirect(path);
     }
 }

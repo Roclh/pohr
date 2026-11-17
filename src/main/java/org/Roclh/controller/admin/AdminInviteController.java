@@ -9,7 +9,7 @@ import org.Roclh.model.User;
 import org.Roclh.model.dto.InviteForm;
 import org.Roclh.repository.UserRepository;
 import org.Roclh.service.InviteService;
-import org.Roclh.service.PublicUrlResolver;
+import org.Roclh.service.PanelUrlResolver;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Controller;
 import org.springframework.ui.Model;
@@ -28,7 +28,7 @@ public class AdminInviteController {
 
     private final InviteService inviteService;
     private final UserRepository userRepository;
-    private final PublicUrlResolver publicUrlResolver;
+    private final PanelUrlResolver panelUrlResolver;
 
     @GetMapping
     public String list(Model model) {
@@ -68,7 +68,9 @@ public class AdminInviteController {
             flash.addFlashAttribute("errorMessage", "error.invite.notfound");
             return "redirect:/admin/invites";
         }
-        String base = publicUrlResolver.resolve(request);
+        // Ссылка должна вести на панель: после принятия инвайта пользователь
+        // попадает в /home, а сессия ставится на origin панели.
+        String base = panelUrlResolver.base(request);
         model.addAttribute("invite", inv);
         model.addAttribute("inviteUrl", base + "/invite/" + inv.getToken());
         return "admin/invite/invite-detail";

@@ -52,7 +52,15 @@ public class EuNodeApiController {
     // --- Bootstrap скрипта ----------------------------------------------------
 
     @GetMapping(value = "/agent.sh", produces = MediaType.APPLICATION_OCTET_STREAM_VALUE)
-    public ResponseEntity<byte[]> agentScript() {
+    public ResponseEntity<byte[]> agentScript(
+            @RequestParam(value = "token", required = false) String token,
+            @RequestParam(value = "nodeId", required = false) String nodeId,
+            @RequestHeader(value = "X-Node-Secret", required = false) String secret) {
+        if (!isAgentRequestAuthorized(token, nodeId, secret)) {
+            return ResponseEntity.status(401)
+                    .contentType(MediaType.TEXT_PLAIN)
+                    .body("Enrollment token or node secret required.".getBytes(StandardCharsets.UTF_8));
+        }
         if (!scriptService.exists("pohr-agent.sh")) {
             return ResponseEntity.status(503)
                     .contentType(MediaType.TEXT_PLAIN)
@@ -68,6 +76,26 @@ public class EuNodeApiController {
             return ResponseEntity.status(500)
                     .contentType(MediaType.TEXT_PLAIN)
                     .body(("Render failed: " + e.getMessage()).getBytes(StandardCharsets.UTF_8));
+        }
+    }
+
+    /**
+     * Агент отдаётся только тому, кто уже имеет узел: либо неиспользованный
+     * enroll-токен ({@code ?token=}), либо id+secret зарегистрированного узла
+     * ({@code ?nodeId=...} + {@code X-Node-Secret}). Оба варианта — та же
+     * проверка, что и у {@code /{id}/config}; анонимный запрос получает 401.
+     */
+    private boolean isAgentRequestAuthorized(String token, String nodeId, String secret) {
+        if (token != null && !token.isBlank() && nodeService.isTokenUsable(token.trim())) {
+            return true;
+        }
+        if (nodeId == null || nodeId.isBlank() || secret == null || secret.isBlank()) {
+            return false;
+        }
+        try {
+            return nodeService.findByNodeSecret(UUID.fromString(nodeId.trim()), secret.trim()).isPresent();
+        } catch (IllegalArgumentException e) {
+            return false;
         }
     }
 

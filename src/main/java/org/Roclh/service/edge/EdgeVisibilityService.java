@@ -54,6 +54,7 @@ public class EdgeVisibilityService {
     public static final String WARN_DNS_MISMATCH = "dns-mismatch";
     public static final String WARN_DUPLICATE_SNI = "duplicate-sni";
     public static final String WARN_FALLBACK_PANEL = "fallback-panel";
+    public static final String WARN_SITE_PROXIES_PANEL = "site-proxies-panel";
     public static final String WARN_SITE_WITHOUT_ROUTE = "site-without-route";
     public static final String WARN_ROUTE_WITHOUT_SITE = "route-without-site";
     public static final String WARN_EXPECTED_SNI_MISSING = "expected-sni-missing";
@@ -66,6 +67,10 @@ public class EdgeVisibilityService {
 
     @Value("${pohr.public-url:}")
     private String publicUrl;
+
+    /** Публичный адрес панели: единственный сайт, которому можно проксировать её порт. */
+    @Value("${pohr.panel-url:https://panel.pohr-roclh.xyz}")
+    private String panelUrl;
 
     @Value("${pohr.edge.server-ip:}")
     private String serverIpOverride;
@@ -106,6 +111,7 @@ public class EdgeVisibilityService {
         }
 
         List<EdgeSniRowDto> rows = new ArrayList<>();
+        Set<String> panelSiteDomains = panelSiteDomains(sites, serverIp);
         for (EdgeRoute route : routes) {
             List<EdgeWarningDto> rowWarnings = new ArrayList<>();
             String sni = route.getSni();
@@ -121,6 +127,9 @@ public class EdgeVisibilityService {
             if (TYPE_CADDY.equals(type) && !siteDomains.contains(normalize(sni))) {
                 rowWarnings.add(new EdgeWarningDto(WARN_ROUTE_WITHOUT_SITE, "WARN", sni,
                         "Caddy route has no matching edge_sites row"));
+            }
+            if (panelSiteDomains.contains(normalize(sni))) {
+                rowWarnings.add(panelSiteWarning(sni));
             }
 
             rows.add(new EdgeSniRowDto(sni, target(route.getTargetHost(), route.getTargetPort()),
@@ -139,6 +148,9 @@ public class EdgeVisibilityService {
             rowWarnings.add(new EdgeWarningDto(WARN_SITE_WITHOUT_ROUTE, "WARN", domain,
                     "unmatched SNI falls back to " + config.getFallbackTarget()));
             rowWarnings.addAll(dnsWarnings(domain, serverIp, lookup));
+            if (panelSiteDomains.contains(normalize(domain))) {
+                rowWarnings.add(panelSiteWarning(domain));
+            }
             rows.add(new EdgeSniRowDto(domain, config.getFallbackTarget(), TYPE_CADDY,
                     resolvesToServer(serverIp, lookup), lookup.addresses(), rowWarnings));
         }
@@ -221,6 +233,49 @@ public class EdgeVisibilityService {
             }
         }
         return serverIp != null && value.equals(serverIp.toLowerCase(Locale.ROOT) + ":" + serverPort);
+    }
+
+    /**
+     * Домены сайтов, которые проксируют порт панели, кроме ожидаемого хоста
+     * панели ({@code pohr.panel-url}). Симметрично {@link #WARN_FALLBACK_PANEL}:
+     * такой сайт отдаёт форму логина на валидном сертификате — это отпечаток.
+     */
+    private Set<String> panelSiteDomains(List<EdgeSite> sites, String serverIp) {
+        Set<String> domains = new LinkedHashSet<>();
+        String expected = panelHost();
+        for (EdgeSite site : sites) {
+            if (!"proxy".equals(site.getSiteType())) {
+                continue;
+            }
+            if (site.getUpstreamHost() == null || site.getUpstreamPort() == null) {
+                continue;
+            }
+            if (!pointsToPanel(target(site.getUpstreamHost(), site.getUpstreamPort()), serverIp)) {
+                continue;
+            }
+            String domain = normalize(site.getDomain());
+            if (expected != null && expected.equals(domain)) {
+                // Это и есть панель: пользователи должны сюда заходить.
+                continue;
+            }
+            domains.add(domain);
+        }
+        return domains;
+    }
+
+    /** Хост панели из {@code pohr.panel-url}; {@code null} — панель не публикуется. */
+    public String panelHost() {
+        return hostFromUrl(panelUrl);
+    }
+
+    /** Публичный URL панели как он задан в конфиге (для UI/MCP). */
+    public String panelUrl() {
+        return panelUrl == null || panelUrl.isBlank() ? null : panelUrl.trim();
+    }
+
+    private static EdgeWarningDto panelSiteWarning(String domain) {
+        return new EdgeWarningDto(WARN_SITE_PROXIES_PANEL, "WARN", domain,
+                "site proxies the panel port; it must bind 127.0.0.1");
     }
 
     private String resolveServerIp(String publicHost) {

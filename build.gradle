@@ -38,6 +38,8 @@ dependencies {
 
     testImplementation platform('org.junit:junit-bom:6.0.0')
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
+    // Boot 4: web-MVC слайсы (@WebMvcTest) вынесены в отдельный модуль.
+    testImplementation 'org.springframework.boot:spring-boot-starter-webmvc-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }
 
@@ -46,6 +48,7 @@ graalvmNative {
         main {
             imageName = 'pohr'
             mainClass = 'org.Roclh.PohrApplication'
+            buildArgs.add('-march=compatibility')
             buildArgs.add('--no-fallback')
             buildArgs.add('-H:+ReportExceptionStackTraces')
             buildArgs.add('-H:+AddAllCharsets')

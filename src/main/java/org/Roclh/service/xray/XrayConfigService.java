@@ -266,7 +266,9 @@ public class XrayConfigService {
             }
 
             link.append("&fm=");
-            link.append("#Pohr");
+            // Нейтральное имя профиля: подпись видна в клиенте и в логах,
+            // бренд проекта там не нужен.
+            link.append("#vless-").append(result.size() + 1);
             result.add(link.toString());
         }
         return result;

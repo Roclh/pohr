@@ -46,6 +46,11 @@ project-summary.txt
 
 ### Mac OS ###
 .DS_Store
+
+### Прод-данные и миграционные архивы (никогда не коммитить) ###
+.backup/
+*.enc
+pohr-migration.tgz
 /data/pohr.db
 /xray/**
 /xray/

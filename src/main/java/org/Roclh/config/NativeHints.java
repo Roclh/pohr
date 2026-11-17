@@ -66,6 +66,18 @@ public class NativeHints {
             hints.reflection().registerType(org.Roclh.model.dto.UserDto.class, MemberCategory.values());
             hints.reflection().registerType(org.Roclh.model.dto.EuNodeDto.class, MemberCategory.values());
             hints.reflection().registerType(org.Roclh.model.dto.EuNodeForm.class, MemberCategory.values());
+            // Т03: профиль REALITY в шаблоне eu-node-detail и binding формы
+            hints.reflection().registerType(org.Roclh.model.dto.EuNodeProfileForm.class, MemberCategory.values());
+            hints.reflection().registerType(org.Roclh.model.EuNodeProfileHistory.class, MemberCategory.values());
+            hints.reflection().registerType(
+                    org.Roclh.service.node.EuConfigService.EffectiveProfile.class,
+                    MemberCategory.values());
+            hints.reflection().registerType(
+                    org.Roclh.service.node.EuNodeProfileValidator.ValidationResult.class,
+                    MemberCategory.values());
+            hints.reflection().registerType(
+                    org.Roclh.service.node.TlsProbe.Result.class,
+                    MemberCategory.values());
             hints.reflection().registerType(org.Roclh.model.dto.XrayConfigForm.class, MemberCategory.values());
             hints.reflection().registerType(org.Roclh.model.dto.ScriptInfo.class, MemberCategory.values());
             hints.reflection().registerType(org.Roclh.model.dto.EnrollmentRequest.class, MemberCategory.values());

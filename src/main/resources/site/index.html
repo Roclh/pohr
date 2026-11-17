@@ -3,87 +3,95 @@
 <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="robots" content="noindex">
-    <title>Roclh — coming soon</title>
-    <style>
-        :root {
-            color-scheme: dark;
-            --bg: #0b0b0e;
-            --panel: #131318;
-            --text: #f4f4f5;
-            --muted: #9b9ba6;
-            --accent: #d8ff4f;
-        }
-        * { box-sizing: border-box; }
-        html, body { height: 100%; margin: 0; }
-        body {
-            display: grid;
-            place-items: center;
-            padding: 24px;
-            background:
-                radial-gradient(900px 500px at 15% -10%, #23232b 0%, transparent 60%),
-                radial-gradient(700px 420px at 110% 110%, #1b2410 0%, transparent 55%),
-                var(--bg);
-            color: var(--text);
-            font: 16px/1.55 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
-        }
-        main {
-            width: min(680px, 100%);
-            padding: clamp(28px, 6vw, 56px);
-            border: 1px solid #26262f;
-            border-radius: 24px;
-            background: linear-gradient(180deg, rgba(255,255,255,.03), transparent), var(--panel);
-            box-shadow: 0 30px 80px rgba(0,0,0,.45);
-        }
-        .mark {
-            display: inline-flex;
-            align-items: center;
-            gap: 10px;
-            font-weight: 700;
-            letter-spacing: .14em;
-            text-transform: uppercase;
-            font-size: 12px;
-            color: var(--accent);
-        }
-        .dot {
-            width: 8px; height: 8px; border-radius: 50%;
-            background: var(--accent);
-            box-shadow: 0 0 16px var(--accent);
-        }
-        h1 {
-            margin: 18px 0 10px;
-            font-size: clamp(40px, 9vw, 76px);
-            line-height: .95;
-            letter-spacing: -.04em;
-        }
-        p { margin: 0; color: var(--muted); max-width: 46ch; }
-        .status {
-            margin-top: 28px;
-            padding-top: 20px;
-            border-top: 1px solid #26262f;
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px 18px;
-            font-size: 13px;
-            color: #7f7f8a;
-        }
-        .tag {
-            padding: 4px 10px;
-            border: 1px solid #2e2e38;
-            border-radius: 999px;
-            color: #c9c9d2;
-        }
-    </style>
+    <title>Roclh — монтаж Reels и TikTok</title>
+    <meta name="description" content="Roclh — монтаж вертикальных видео: Reels, TikTok, Shorts. Динамика, звук, субтитры, цветокоррекция.">
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml">
+    <meta name="theme-color" content="#0a0a0c">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Roclh — монтаж Reels и TikTok">
+    <meta property="og:description" content="Вертикальный монтаж: динамика, звук, субтитры, цветокоррекция.">
+    <link rel="stylesheet" href="/assets/site.css">
 </head>
 <body>
-<main>
-    <span class="mark"><span class="dot"></span> Roclh</span>
-    <h1>Coming<br>soon.</h1>
-    <p>Монтаж Reels и TikTok: портфолио, услуги и контакт — скоро здесь.</p>
-    <div class="status">
-        <span class="tag">site under construction</span>
-        <span>pohr-roclh.xyz</span>
+<header class="site">
+    <div class="wrap bar">
+        <a class="brand" href="/"><span class="dot"></span>Roclh</a>
+        <nav class="main">
+            <a class="active" href="/">Главная</a>
+            <a href="/work.html">Работы</a>
+            <a href="/services.html">Услуги</a>
+            <a href="/about.html">О себе</a>
+            <a href="/contact.html">Контакты</a>
+        </nav>
     </div>
+</header>
+
+<main class="wrap">
+    <section>
+        <span class="eyebrow">монтаж вертикальных видео</span>
+        <h1>Reels, TikTok и&nbsp;Shorts, которые досматривают до&nbsp;конца.</h1>
+        <p class="lead">Собираю ролики из сырого материала: держу ритм, чищу звук, ставлю
+            субтитры и цвет. Работаю с блогерами, экспертами и малым бизнесом — от одного
+            ролика до месячного контент-плана.</p>
+        <div class="tags">
+            <span class="tag">Reels</span>
+            <span class="tag">TikTok</span>
+            <span class="tag">Shorts</span>
+            <span class="tag">субтитры</span>
+            <span class="tag">звук</span>
+            <span class="tag">цветокоррекция</span>
+        </div>
+        <div class="buttons">
+            <a class="btn primary" href="/contact.html">Обсудить проект</a>
+            <a class="btn" href="/work.html">Смотреть работы</a>
+        </div>
+    </section>
+
+    <h2>Избранное</h2>
+    <div class="reels">
+        <article class="reel"><span>Эксперт · горизонтальное видео → вертикаль, крючок в 2&nbsp;секунды</span></article>
+        <article class="reel"><span>Бьюти · динамичная нарезка и желтый грейд в едином стиле</span></article>
+        <article class="reel"><span>Локальный бизнес · оффер, субтитры, естественный звук</span></article>
+        <article class="reel"><span>Подкаст · короткие ёмкие фрагменты с подписями</span></article>
+    </div>
+
+    <h2>Как идёт работа</h2>
+    <div class="grid">
+        <article class="card">
+            <h3>1. Бриф</h3>
+            <p>Смотрю исходники, обсуждаем цель ролика, референсы и сроки. На выходе — понятный план монтажа.</p>
+        </article>
+        <article class="card">
+            <h3>2. Сборка</h3>
+            <p>Черновая сборка с ритмом и текстом. Правки — до финальной версии, у каждой итерации отмечено, что менялось.</p>
+        </article>
+        <article class="card">
+            <h3>3. Финиш</h3>
+            <p>Чистый звук, субтитры, цвет и экспорт под нужные форматы площадок.</p>
+        </article>
+    </div>
+
+    <hr class="sep">
+
+    <h2>Часто спрашивают</h2>
+    <dl class="faq">
+        <dt>Сколько стоит ролик?</dt>
+        <dd>Зависит от объёма исходников и правок — отвечаю ценой после короткого брифа.</dd>
+        <dt>Нужен ли готовый сценарий?</dt>
+        <dd>Нет. Готов собрать историю из сырого материала и подсказать, чего не хватает.</dd>
+        <dt>Горизонтальный материал подойдёт?</dt>
+        <dd>Да, кадрирую и перестраиваю под вертикаль.</dd>
+    </dl>
 </main>
+
+<footer class="site">
+    <div class="wrap row">
+        <span>© 2026 Roclh · монтаж вертикальных видео</span>
+        <span>
+            <a href="/privacy.html">Конфиденциальность</a> ·
+            <a href="/terms.html">Условия</a>
+        </span>
+    </div>
+</footer>
 </body>
 </html>

@@ -70,6 +70,20 @@ public class EuNode {
     @Column(name = "config_hash", length = 64)
     private String configHash;
 
+    // --- Профиль REALITY (Т03). null = использовать глобальные настройки. ---
+
+    @Column(length = 253)
+    private String sni;
+
+    @Column(length = 255)
+    private String target;
+
+    @Column(length = 16)
+    private String fingerprint;
+
+    @Column(name = "profile_updated_at")
+    private Instant profileUpdatedAt;
+
     @Column(name = "last_health_at")
     private Instant lastHealthAt;
 
